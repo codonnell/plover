@@ -4,6 +4,10 @@ An IMAP4rev2 ([RFC 9051](https://www.rfc-editor.org/rfc/rfc9051)) client library
 
 Plover provides a high-level API for connecting to IMAP servers over implicit TLS, authenticating, managing mailboxes, and fetching/searching/storing messages.
 
+## Disclaimer
+
+While I did my best to ensure this library works and am starting to use it in another application, please be aware that it was generated with a generous dosage of help from AI and should not be considered production ready.
+
 ## Features
 
 - Full IMAP4rev2 command set: LOGIN, AUTHENTICATE (PLAIN, XOAUTH2), SELECT, EXAMINE, FETCH, SEARCH, STORE, COPY, MOVE, IDLE, APPEND, and more
