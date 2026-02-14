@@ -5,17 +5,23 @@ defmodule Plover.Transport.SSL do
 
   @behaviour Plover.Transport
 
-  @default_opts [
-    active: false,
-    verify: :verify_peer,
-    cacerts: :public_key.cacerts_get(),
-    depth: 3
-  ]
-
   @impl true
   def connect(host, port, opts) do
-    ssl_opts = Keyword.merge(@default_opts, opts)
-    :ssl.connect(String.to_charlist(host), port, ssl_opts)
+    charlist_host = String.to_charlist(host)
+
+    default_opts = [
+      active: false,
+      verify: :verify_peer,
+      cacerts: :public_key.cacerts_get(),
+      depth: 3,
+      server_name_indication: charlist_host,
+      customize_hostname_check: [
+        match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+      ]
+    ]
+
+    ssl_opts = Keyword.merge(default_opts, opts)
+    :ssl.connect(charlist_host, port, ssl_opts)
   end
 
   @impl true
