@@ -14,7 +14,7 @@ defmodule Plover.Transport.MockTest do
     Mock.enqueue(socket, "* OK IMAP4rev2 server ready\r\n")
     # Set active mode to get message
     :ok = Mock.setopts(socket, active: :once)
-    assert_receive {:mock_ssl, ^socket, "* OK IMAP4rev2 server ready\r\n"}
+    assert_receive {:mock_ssl, ^socket, ~c"* OK IMAP4rev2 server ready\r\n"}
   end
 
   test "send data to mock" do
@@ -30,10 +30,10 @@ defmodule Plover.Transport.MockTest do
     Mock.enqueue(socket, "A001 OK done\r\n")
 
     :ok = Mock.setopts(socket, active: :once)
-    assert_receive {:mock_ssl, ^socket, "* OK greeting\r\n"}
+    assert_receive {:mock_ssl, ^socket, ~c"* OK greeting\r\n"}
 
     :ok = Mock.setopts(socket, active: :once)
-    assert_receive {:mock_ssl, ^socket, "A001 OK done\r\n"}
+    assert_receive {:mock_ssl, ^socket, ~c"A001 OK done\r\n"}
   end
 
   test "close the connection" do
@@ -51,7 +51,7 @@ defmodule Plover.Transport.MockTest do
       receive do
         :take_over ->
           :ok = Mock.setopts(socket, active: :once)
-          assert_receive {:mock_ssl, ^socket, "data\r\n"}
+          assert_receive {:mock_ssl, ^socket, ~c"data\r\n"}
           send(parent, :received)
       end
     end)

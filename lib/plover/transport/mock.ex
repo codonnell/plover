@@ -80,7 +80,8 @@ defmodule Plover.Transport.Mock do
       :once ->
         case :queue.out(state.inbox) do
           {{:value, data}, rest} ->
-            Kernel.send(state.controller, {:mock_ssl, self(), data})
+            # Deliver as charlist to match real :ssl behavior
+            Kernel.send(state.controller, {:mock_ssl, self(), String.to_charlist(data)})
             {:reply, :ok, %{state | inbox: rest, active: false}}
 
           {:empty, _} ->

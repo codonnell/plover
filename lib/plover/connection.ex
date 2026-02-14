@@ -224,7 +224,7 @@ defmodule Plover.Connection do
   @impl true
   def handle_info({transport_tag, _socket, data}, %State{} = state)
       when transport_tag in [:ssl, :mock_ssl] do
-    buffer = state.buffer <> data
+    buffer = state.buffer <> IO.iodata_to_binary(data)
     state = %{state | buffer: buffer}
     state = process_buffer(state)
 
