@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:hexdocs.pm)",
+      "Bash(mix deps.get:*)",
+      "Bash(mix test:*)",
+      "Bash(mix dialyzer:*)",
+      "Bash(mix help:*)",
+      "Bash(mix usage_rules.search_docs:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}
