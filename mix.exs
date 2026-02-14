@@ -31,7 +31,8 @@ defmodule Plover.MixProject do
       {:nimble_parsec, "~> 1.4"},
       {:stream_data, "~> 1.1", only: [:test]},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
-      {:usage_rules, "~> 1.0", only: [:dev]}
+      {:usage_rules, "~> 1.0", only: [:dev]},
+      {:ex_doc, "~> 0.37", only: [:dev, :test], runtime: false}
     ]
   end
 
