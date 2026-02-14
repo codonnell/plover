@@ -8,6 +8,7 @@ defmodule Plover.MixProject do
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      description: description(),
       deps: deps(),
       dialyzer: [plt_add_apps: [:ssl]],
       usage_rules: usage_rules(),
@@ -34,6 +35,10 @@ defmodule Plover.MixProject do
       {:usage_rules, "~> 1.0", only: [:dev]},
       {:ex_doc, "~> 0.37", only: [:dev, :test], runtime: false}
     ]
+  end
+
+  defp description do
+    "Plover provides a high-level API for connecting to IMAP servers over implicit TLS, authenticating, managing mailboxes, and fetching/searching/storing messages."
   end
 
   defp usage_rules do
