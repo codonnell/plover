@@ -53,6 +53,7 @@ lib/plover/
 ## GenServer Design
 
 ### State
+
 ```elixir
 %State{
   transport: module(),          # SSL or Mock
@@ -69,6 +70,7 @@ lib/plover/
 ```
 
 ### Message Flow
+
 1. Client calls e.g. `Plover.select(conn, "INBOX")` -> `GenServer.call(conn, {:command, :select, ["INBOX"]})`
 2. GenServer generates tag, builds command via CommandBuilder, sends over socket, stores pending entry, returns `{:noreply, state}`
 3. Socket data arrives via `handle_info({:ssl, socket, data})` in `active: :once` mode
@@ -78,9 +80,11 @@ lib/plover/
 ## Protocol Parser
 
 ### Tokenizer (`protocol/tokenizer.ex`)
+
 Built with **NimbleParsec** (compile-time only — generates inline binary-matching code, zero runtime dep). Exposes a public `tokenize/1` function returning `{:ok, tokens, rest}` or `{:error, reason}`.
 
 NimbleParsec combinators define individual token types:
+
 - `atom_token`: 1+ ATOM-CHARs (not parens, space, CTL, wildcards, brackets, quotes, backslash, `{`)
 - `number_token`: 1+ DIGITs, mapped to integer via `map({String, :to_integer, []})`
 - `quoted_string`: DQUOTE, repeat of (TEXT-CHAR except `"` and `\`) or (`\` then `"` or `\`), DQUOTE — uses `reduce` to unescape
@@ -95,7 +99,9 @@ The top-level `response_line` combinator uses `repeat(choice([...all token types
 Token types: `{:atom, bin}`, `{:number, int}`, `{:quoted_string, bin}`, `{:literal, bin}`, `{:flag, bin}`, `:lparen`, `:rparen`, `:lbracket`, `:rbracket`, `:star`, `:plus`, `:crlf`, `:nil`
 
 ### Parser (`protocol/parser.ex`)
+
 Recursive-descent parser consuming the token list from the tokenizer. Dispatches on first token:
+
 - `{:atom, tag}` -> tagged response (OK/NO/BAD with resp-text-code)
 - `:star` -> untagged: number-prefixed (EXISTS/EXPUNGE/FETCH) or keyword (CAPABILITY/FLAGS/LIST/STATUS/ESEARCH/BYE/OK/NO/BAD)
 - `:plus` -> continuation
@@ -105,6 +111,7 @@ This layer stays hand-written (not NimbleParsec) because it operates on token li
 Key sub-parsers: `parse_envelope/1`, `parse_body_structure/1`, `parse_msg_att/1`, `parse_esearch/1`, `parse_resp_text_code/1`
 
 ### Command Builder (`protocol/command_builder.ex`)
+
 Serializes `%Command{}` to iodata. Handles astring quoting rules (atom if safe chars only, quoted string otherwise, literal for binary data). APPEND returns `{first_part, literal_data}` tuple for continuation flow.
 
 ## Auth Encoders
@@ -125,12 +132,14 @@ Serializes `%Command{}` to iodata. Handles astring quoting rules (atom if safe c
 ## Testing Strategy
 
 ### Dependencies (test-only)
+
 - `stream_data ~> 1.1` for property-based tests
 - `dialyxir ~> 1.4` for static analysis (dev only)
 
 ### Test Layers
 
 **Layer 1 - Pure unit tests (no processes):**
+
 - `tokenizer_test.exs`: Every token type, escaping, literals, incomplete buffers (~100 cases)
 - `parser_test.exs`: Every response type, all FETCH data items, envelope, bodystructure, esearch (~80 cases)
 - `command_builder_test.exs`: Every command, quoting rules, special characters (~40 cases)
@@ -138,17 +147,21 @@ Serializes `%Command{}` to iodata. Handles astring quoting rules (atom if safe c
 - `plain_test.exs`, `xoauth2_test.exs`: Encoding correctness
 
 **Layer 2 - Property-based tests (StreamData):**
+
 - Tokenizer round-trip: generate tokens -> serialize -> tokenize -> assert match
 - Sequence set round-trip: generate -> format -> parse -> assert match
 
 **Layer 3 - Connection tests (mock transport):**
+
 - `connection_test.exs`: Lifecycle, state transitions, tag generation, error handling
 
 **Layer 4 - Integration flow tests (scripted mock server):**
+
 - `login_flow_test.exs`, `select_flow_test.exs`, `fetch_flow_test.exs`
 - `search_flow_test.exs`, `idle_flow_test.exs`, `error_handling_test.exs`, `uid_commands_test.exs`
 
 ### Mock Infrastructure (`test/support/`)
+
 - `fake_imap_server.ex`: GenServer accepting scripted interactions
 - `server_script.ex`: DSL for defining expected commands and responses
 - `factory.ex`: Builds response binaries for tests
@@ -158,38 +171,47 @@ Serializes `%Command{}` to iodata. Handles astring quoting rules (atom if safe c
 ## Implementation Order
 
 ### Phase 1: Data Types & Protocol Foundation
+
 Files: `types.ex`, `command.ex`, `response.ex`, all `response/*.ex`, `sequence_set.ex`
 Tests: `sequence_set_test.exs`
 
 ### Phase 2: Tokenizer
+
 Files: `protocol/tokenizer.ex`
 Tests: `tokenizer_test.exs`, `tokenizer_property_test.exs`
 
 ### Phase 3: Parser
+
 Files: `protocol/parser.ex`
 Tests: `parser_test.exs`, `parser_property_test.exs`
 
 ### Phase 4: Command Builder
+
 Files: `protocol/command_builder.ex`
 Tests: `command_builder_test.exs`
 
 ### Phase 5: Auth Encoders
+
 Files: `auth/plain.ex`, `auth/xoauth2.ex`
 Tests: `plain_test.exs`, `xoauth2_test.exs`
 
 ### Phase 6: Transport Layer
+
 Files: `transport.ex`, `transport/ssl.ex`, `transport/mock.ex`
 Tests: `mock_test.exs`
 
 ### Phase 7: Connection GenServer (incremental)
+
 Files: `connection.ex`, `connection/state.ex`
 Tests: `connection_test.exs`
 Build incrementally: greeting -> simple commands -> LOGIN -> AUTHENTICATE -> SELECT -> FETCH/STORE/SEARCH -> UID variants -> IDLE -> APPEND -> error handling -> state machine enforcement
 
 ### Phase 8: Public API
+
 Files: Update `plover.ex` with full API, update `plover_test.exs`
 
 ### Phase 9: Integration Tests & Polish
+
 Files: All `test/plover/integration/*.exs`, test support files
 Update `mix.exs`: deps, elixirc_paths, extra_applications (`:ssl`, `:crypto`)
 
@@ -199,11 +221,12 @@ Update `mix.exs`: deps, elixirc_paths, extra_applications (`:ssl`, `:crypto`)
 2. `mix test` - all tests pass
 3. `mix dialyzer` - no warnings
 4. Manual verification: connect to a real IMAP server (e.g. Gmail on port 993) using `iex -S mix`:
+
    ```elixir
    {:ok, conn} = Plover.connect("imap.gmail.com")
    {:ok, _} = Plover.authenticate_xoauth2(conn, "user@gmail.com", oauth_token)
    {:ok, mailboxes} = Plover.list(conn, "", "*")
    {:ok, info} = Plover.select(conn, "INBOX")
    {:ok, messages} = Plover.fetch(conn, "1:5", [:envelope, :flags, :uid])
-   :ok = Plover.logout(conn)
+   {:ok, _} = Plover.logout(conn)
    ```

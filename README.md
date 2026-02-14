@@ -42,7 +42,7 @@ IO.puts("#{results.count} unseen messages")
 {:ok, _} = Plover.idle_done(conn)
 
 # Clean up
-:ok = Plover.logout(conn)
+{:ok, _} = Plover.logout(conn)
 ```
 
 ## Architecture

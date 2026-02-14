@@ -11,7 +11,7 @@ defmodule Plover do
       {:ok, _} = Plover.login(conn, "user@gmail.com", "password")
       {:ok, _} = Plover.select(conn, "INBOX")
       {:ok, messages} = Plover.fetch(conn, "1:5", [:envelope, :flags, :uid])
-      :ok = Plover.logout(conn)
+      {:ok, _} = Plover.logout(conn)
 
   ## Architecture
 
