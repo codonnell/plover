@@ -15,24 +15,42 @@ defmodule Plover.Connection do
 
   # --- Client API ---
 
+  @doc false
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
   end
 
-  @doc "Get the current connection state (:not_authenticated, :authenticated, :selected, :logout)"
+  @doc """
+  Returns the current IMAP connection state.
+
+  Possible values: `:not_authenticated`, `:authenticated`, `:selected`, `:logout`.
+  """
+  @spec state(GenServer.server()) :: :not_authenticated | :authenticated | :selected | :logout
   def state(conn), do: GenServer.call(conn, :get_state)
 
-  @doc "Get current capabilities"
+  @doc """
+  Returns the server's advertised capabilities as a list of strings.
+  """
+  @spec capabilities(GenServer.server()) :: [String.t()]
   def capabilities(conn), do: GenServer.call(conn, :get_capabilities)
 
-  @doc "Get mailbox info after SELECT/EXAMINE"
+  @doc """
+  Returns mailbox metadata from the most recent SELECT or EXAMINE.
+
+  The returned map may include keys like `:exists`, `:flags`, `:uid_validity`,
+  and `:uid_next`. Returns `nil` if no mailbox is selected.
+  """
+  @spec mailbox_info(GenServer.server()) :: map() | nil
   def mailbox_info(conn), do: GenServer.call(conn, :get_mailbox_info)
 
   # --- Commands ---
 
+  @doc false
   def capability(conn), do: GenServer.call(conn, {:command, "CAPABILITY", []})
+  @doc false
   def noop(conn), do: GenServer.call(conn, {:command, "NOOP", []})
 
+  @doc false
   def logout(conn) do
     result = GenServer.call(conn, {:command, "LOGOUT", []})
     # Stop the GenServer after logout
@@ -40,28 +58,39 @@ defmodule Plover.Connection do
     result
   end
 
+  @doc false
   def login(conn, user, pass) do
     GenServer.call(conn, {:command, "LOGIN", [user, pass]})
   end
 
+  @doc false
   def authenticate(conn, mechanism, user, password) do
     encoded = Plover.Auth.Plain.encode(user, password)
     GenServer.call(conn, {:command, "AUTHENTICATE", [mechanism, encoded]})
   end
 
+  @doc false
   def authenticate_xoauth2(conn, user, token) do
     encoded = Plover.Auth.XOAuth2.encode(user, token)
     GenServer.call(conn, {:command, "AUTHENTICATE", ["XOAUTH2", encoded]})
   end
 
+  @doc false
   def select(conn, mailbox), do: GenServer.call(conn, {:command, "SELECT", [mailbox]})
+  @doc false
   def examine(conn, mailbox), do: GenServer.call(conn, {:command, "EXAMINE", [mailbox]})
+  @doc false
   def create(conn, mailbox), do: GenServer.call(conn, {:command, "CREATE", [mailbox]})
+  @doc false
   def delete(conn, mailbox), do: GenServer.call(conn, {:command, "DELETE", [mailbox]})
+  @doc false
   def close(conn), do: GenServer.call(conn, {:command, "CLOSE", []})
+  @doc false
   def unselect(conn), do: GenServer.call(conn, {:command, "UNSELECT", []})
+  @doc false
   def expunge(conn), do: GenServer.call(conn, {:command, "EXPUNGE", []})
 
+  @doc false
   def append(conn, mailbox, message, opts \\ []) do
     flags = Keyword.get(opts, :flags)
     date = Keyword.get(opts, :date)
@@ -74,70 +103,85 @@ defmodule Plover.Connection do
     GenServer.call(conn, {:command, "APPEND", args})
   end
 
+  @doc false
   def list(conn, reference, pattern) do
     GenServer.call(conn, {:command, "LIST", [reference, pattern]})
   end
 
+  @doc false
   def status(conn, mailbox, attrs) do
     attr_str = attrs |> Enum.map(&status_attr_to_string/1) |> Enum.join(" ")
     GenServer.call(conn, {:command, "STATUS", [mailbox, {:raw, "(#{attr_str})"}]})
   end
 
+  @doc false
   def fetch(conn, sequence, attrs) do
     attr_str = fetch_attrs_to_string(attrs)
     GenServer.call(conn, {:command, "FETCH", [sequence, {:raw, attr_str}]})
   end
 
+  @doc false
   def search(conn, criteria) do
     GenServer.call(conn, {:command, "SEARCH", [criteria]})
   end
 
+  @doc false
   def store(conn, sequence, action, flags) do
     action_str = store_action_to_string(action)
     flag_str = flags_to_string(flags)
     GenServer.call(conn, {:command, "STORE", [sequence, action_str, {:raw, flag_str}]})
   end
 
+  @doc false
   def copy(conn, sequence, mailbox) do
     GenServer.call(conn, {:command, "COPY", [sequence, mailbox]})
   end
 
+  @doc false
   def move(conn, sequence, mailbox) do
     GenServer.call(conn, {:command, "MOVE", [sequence, mailbox]})
   end
 
+  @doc false
   def idle(conn, callback) do
     GenServer.call(conn, {:idle, callback})
   end
 
+  @doc false
   def idle_done(conn) do
     GenServer.call(conn, :idle_done)
   end
 
   # UID variants
+  @doc false
   def uid_fetch(conn, sequence, attrs) do
     attr_str = fetch_attrs_to_string(attrs)
     GenServer.call(conn, {:command, "UID FETCH", [sequence, {:raw, attr_str}]})
   end
 
+  @doc false
   def uid_store(conn, sequence, action, flags) do
     action_str = store_action_to_string(action)
     flag_str = flags_to_string(flags)
     GenServer.call(conn, {:command, "UID STORE", [sequence, action_str, {:raw, flag_str}]})
   end
 
+  @doc false
   def uid_copy(conn, sequence, mailbox) do
     GenServer.call(conn, {:command, "UID COPY", [sequence, mailbox]})
   end
 
+  @doc false
   def uid_move(conn, sequence, mailbox) do
     GenServer.call(conn, {:command, "UID MOVE", [sequence, mailbox]})
   end
 
+  @doc false
   def uid_search(conn, criteria) do
     GenServer.call(conn, {:command, "UID SEARCH", [criteria]})
   end
 
+  @doc false
   def uid_expunge(conn, sequence) do
     GenServer.call(conn, {:command, "UID EXPUNGE", [sequence]})
   end

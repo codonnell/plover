@@ -1,7 +1,5 @@
 defmodule Plover.Connection.State do
-  @moduledoc """
-  Internal state for the Connection GenServer.
-  """
+  @moduledoc false
 
   defstruct [
     :transport,

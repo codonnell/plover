@@ -9,8 +9,23 @@ defmodule Plover.SequenceSet do
     nz-number       = digit-nz *DIGIT
   """
 
+  @typedoc "A single range in a sequence set, where both endpoints may be `:star`."
   @type range :: {Plover.Types.seq_number(), Plover.Types.seq_number()}
 
+  @doc """
+  Parses an IMAP sequence set string into a list of range tuples.
+
+  Single numbers become `{n, n}` tuples. The wildcard `*` becomes `:star`.
+
+  ## Examples
+
+      iex> Plover.SequenceSet.parse("1:5")
+      {:ok, [{1, 5}]}
+
+      iex> Plover.SequenceSet.parse("1,3:5,10:*")
+      {:ok, [{1, 1}, {3, 5}, {10, :star}]}
+
+  """
   @spec parse(String.t()) :: {:ok, [range()]} | {:error, :invalid}
   def parse(str) when is_binary(str) do
     str
@@ -52,6 +67,18 @@ defmodule Plover.SequenceSet do
     end
   end
 
+  @doc """
+  Formats a list of range tuples into an IMAP sequence set string.
+
+  ## Examples
+
+      iex> Plover.SequenceSet.format([{1, 5}, {10, :star}])
+      "1:5,10:*"
+
+      iex> Plover.SequenceSet.format([{3, 3}])
+      "3"
+
+  """
   @spec format([range()]) :: String.t()
   def format(ranges) when is_list(ranges) do
     ranges

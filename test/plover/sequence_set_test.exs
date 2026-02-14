@@ -1,5 +1,6 @@
 defmodule Plover.SequenceSetTest do
   use ExUnit.Case, async: true
+  doctest Plover.SequenceSet
 
   alias Plover.SequenceSet
 

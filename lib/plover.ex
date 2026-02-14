@@ -25,19 +25,30 @@ defmodule Plover do
   @default_port 993
 
   @doc """
-  Connect to an IMAP server over implicit TLS.
+  Connects to an IMAP server over implicit TLS.
 
-  Options:
-  - `:port` - port number (default: 993)
-  - `:transport` - transport module (default: `Plover.Transport.SSL`)
-  - `:socket` - pre-established socket (for testing with mock transport)
-  - `:ssl_opts` - additional SSL options
+  Returns `{:ok, pid}` where `pid` is the connection process, or
+  `{:error, reason}` on failure.
+
+  ## Options
+
+    * `:port` - port number (default: 993)
+    * `:transport` - transport module (default: `Plover.Transport.SSL`)
+    * `:socket` - pre-established socket (for testing with `Plover.Transport.Mock`)
+    * `:ssl_opts` - additional SSL options
+
+  ## Examples
+
+      {:ok, conn} = Plover.connect("imap.example.com")
+      {:ok, conn} = Plover.connect("imap.example.com", port: 993)
+
   """
   @spec connect(String.t(), keyword()) :: {:ok, pid()} | {:error, term()}
   def connect(host, opts \\ []) do
     connect(host, Keyword.get(opts, :port, @default_port), opts)
   end
 
+  @doc false
   @spec connect(String.t(), :inet.port_number(), keyword()) :: {:ok, pid()} | {:error, term()}
   def connect(host, port, opts) do
     transport = Keyword.get(opts, :transport, Plover.Transport.SSL)
@@ -59,93 +70,257 @@ defmodule Plover do
     end
   end
 
-  @doc "Log in with username and password (LOGIN command)."
+  @doc """
+  Logs in with a username and password using the IMAP LOGIN command.
+
+  Returns `{:ok, response}` on success or `{:error, response}` if the
+  server rejects the credentials.
+  """
+  @spec login(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate login(conn, user, password), to: Connection
 
-  @doc "Authenticate using SASL PLAIN mechanism."
+  @doc """
+  Authenticates using the SASL PLAIN mechanism.
+
+  Encodes the credentials per RFC 4616 and sends an AUTHENTICATE PLAIN command.
+  """
+  @spec authenticate(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
   def authenticate(conn, user, password) do
     Connection.authenticate(conn, "PLAIN", user, password)
   end
 
-  @doc "Authenticate using XOAUTH2 mechanism."
+  @doc """
+  Authenticates using the XOAUTH2 mechanism.
+
+  Encodes the username and OAuth2 access token, then sends an
+  AUTHENTICATE XOAUTH2 command. Used with providers like Gmail.
+  """
+  @spec authenticate_xoauth2(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate authenticate_xoauth2(conn, user, token), to: Connection
 
-  @doc "Select a mailbox for access."
+  @doc """
+  Selects a mailbox for read-write access.
+
+  The connection transitions to the `:selected` state. Untagged responses
+  include mailbox metadata (EXISTS count, FLAGS, UIDVALIDITY, etc.) which
+  can be retrieved via `Plover.Connection.mailbox_info/1`.
+  """
+  @spec select(pid(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate select(conn, mailbox), to: Connection
 
-  @doc "Select a mailbox for read-only access."
+  @doc """
+  Selects a mailbox for read-only access.
+
+  Identical to `select/2` but the server will not allow flag modifications.
+  """
+  @spec examine(pid(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate examine(conn, mailbox), to: Connection
 
-  @doc "Create a new mailbox."
+  @doc "Creates a new mailbox on the server."
+  @spec create(pid(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate create(conn, mailbox), to: Connection
 
-  @doc "Delete a mailbox."
+  @doc "Deletes a mailbox from the server."
+  @spec delete(pid(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate delete(conn, mailbox), to: Connection
 
-  @doc "Close the currently selected mailbox."
+  @doc """
+  Closes the currently selected mailbox.
+
+  Permanently removes any messages with the `\\Deleted` flag and transitions
+  the connection back to the `:authenticated` state.
+  """
+  @spec close(pid()) :: {:ok, term()} | {:error, term()}
   defdelegate close(conn), to: Connection
 
-  @doc "Unselect the currently selected mailbox without expunging."
+  @doc """
+  Unselects the currently selected mailbox without expunging.
+
+  Unlike `close/1`, does not remove `\\Deleted` messages. Transitions
+  the connection back to the `:authenticated` state.
+  """
+  @spec unselect(pid()) :: {:ok, term()} | {:error, term()}
   defdelegate unselect(conn), to: Connection
 
-  @doc "Permanently remove deleted messages from the selected mailbox."
+  @doc "Permanently removes all messages with the `\\Deleted` flag from the selected mailbox."
+  @spec expunge(pid()) :: {:ok, term()} | {:error, term()}
   defdelegate expunge(conn), to: Connection
 
-  @doc "List mailboxes matching a pattern."
+  @doc """
+  Lists mailboxes matching a pattern.
+
+  Returns `{:ok, [%Plover.Response.Mailbox.List{}]}`. The `reference` is
+  typically `""` and `pattern` uses `*` as a wildcard (e.g., `"*"` for all
+  mailboxes, `"INBOX/*"` for children of INBOX).
+  """
+  @spec list(pid(), String.t(), String.t()) ::
+          {:ok, [Plover.Response.Mailbox.List.t()]} | {:error, term()}
   defdelegate list(conn, reference, pattern), to: Connection
 
-  @doc "Get status information for a mailbox."
+  @doc """
+  Returns status information for a mailbox without selecting it.
+
+  The `attrs` parameter is a list of status attributes to query.
+
+  ## Attributes
+
+    * `:messages` - number of messages
+    * `:unseen` - number of unseen messages
+    * `:uid_next` - next UID value
+    * `:uid_validity` - UID validity value
+    * `:recent` - number of recent messages
+
+  """
+  @spec status(pid(), String.t(), [Plover.Types.status_attr()]) ::
+          {:ok, Plover.Response.Mailbox.Status.t()} | {:error, term()}
   defdelegate status(conn, mailbox, attrs), to: Connection
 
-  @doc "Fetch message data for a sequence set."
+  @doc """
+  Fetches message data for a sequence set.
+
+  Returns `{:ok, [%Plover.Response.Message.Fetch{}]}` with one entry per
+  matched message. Each entry has a `.seq` (sequence number) and `.attrs`
+  map containing the requested data.
+
+  ## Fetch attributes
+
+    * `:envelope` - parsed envelope (subject, from, to, date, etc.)
+    * `:flags` - list of flag atoms (`:seen`, `:flagged`, etc.)
+    * `:uid` - unique identifier
+    * `:body_structure` - MIME structure
+    * `:internal_date` - server receipt date
+    * `:rfc822_size` - message size in bytes
+    * `{:body, section}` - body content (sets `\\Seen` flag)
+    * `{:body_peek, section}` - body content (does not set `\\Seen`)
+
+  ## Examples
+
+      {:ok, messages} = Plover.fetch(conn, "1:5", [:envelope, :flags, :uid])
+      {:ok, [msg]} = Plover.fetch(conn, "1", [{:body_peek, "HEADER"}])
+
+  """
+  @spec fetch(pid(), String.t(), [Plover.Types.fetch_attr()]) ::
+          {:ok, [Plover.Response.Message.Fetch.t()]} | {:error, term()}
   defdelegate fetch(conn, sequence, attrs), to: Connection
 
-  @doc "Search for messages matching criteria."
+  @doc """
+  Searches for messages matching the given criteria.
+
+  The `criteria` is a raw IMAP search string sent directly to the server.
+  Returns `{:ok, %Plover.Response.ESearch{}}` with result fields like
+  `.count`, `.min`, `.max`, and `.all`.
+
+  ## Examples
+
+      {:ok, results} = Plover.search(conn, "UNSEEN")
+      {:ok, results} = Plover.search(conn, "FROM \\"user@example.com\\" SINCE 1-Jan-2024")
+
+  """
+  @spec search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, term()}
   defdelegate search(conn, criteria), to: Connection
 
-  @doc "Store flags on messages."
+  @doc """
+  Modifies flags on messages in the selected mailbox.
+
+  The `action` determines how flags are applied:
+
+    * `:add` - adds the given flags (`+FLAGS`)
+    * `:remove` - removes the given flags (`-FLAGS`)
+    * `:set` - replaces all flags with the given list (`FLAGS`)
+
+  ## Examples
+
+      Plover.store(conn, "1:3", :add, [:seen])
+      Plover.store(conn, "5", :remove, [:deleted])
+      Plover.store(conn, "1:*", :set, [:seen, :flagged])
+
+  """
+  @spec store(pid(), String.t(), Plover.Types.store_action(), [Plover.Types.flag()]) ::
+          {:ok, term()} | {:error, term()}
   defdelegate store(conn, sequence, action, flags), to: Connection
 
-  @doc "Copy messages to another mailbox."
+  @doc "Copies messages identified by `sequence` to the given mailbox."
+  @spec copy(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate copy(conn, sequence, mailbox), to: Connection
 
-  @doc "Move messages to another mailbox."
+  @doc "Moves messages identified by `sequence` to the given mailbox."
+  @spec move(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate move(conn, sequence, mailbox), to: Connection
 
-  @doc "Send a NOOP command."
+  @doc "Sends a NOOP command, which can trigger pending untagged responses."
+  @spec noop(pid()) :: {:ok, term()} | {:error, term()}
   defdelegate noop(conn), to: Connection
 
-  @doc "Log out and close the connection."
+  @doc """
+  Logs out and terminates the connection process.
+
+  The server is sent a LOGOUT command and the GenServer is stopped.
+  The `conn` pid is no longer valid after this call.
+  """
+  @spec logout(pid()) :: {:ok, term()} | {:error, term()}
   defdelegate logout(conn), to: Connection
 
-  @doc "Request server capabilities."
+  @doc "Requests the server's capability list. Returns `{:ok, [String.t()]}`."
+  @spec capability(pid()) :: {:ok, [String.t()]} | {:error, term()}
   defdelegate capability(conn), to: Connection
 
-  @doc "Append a message to a mailbox. Options: `:flags`, `:date`."
+  @doc """
+  Appends a message to the given mailbox.
+
+  The `message` is the raw RFC 2822 message content as a binary. It is sent
+  to the server using the IMAP literal mechanism.
+
+  ## Options
+
+    * `:flags` - list of flag atoms to set (e.g., `[:seen, :draft]`)
+    * `:date` - internal date string (e.g., `"14-Jul-2024 02:44:25 -0700"`)
+
+  """
+  @spec append(pid(), String.t(), binary(), keyword()) :: {:ok, term()} | {:error, term()}
   defdelegate append(conn, mailbox, message, opts \\ []), to: Connection
 
-  @doc "Enter IDLE mode for real-time notifications."
+  @doc """
+  Enters IDLE mode for real-time mailbox notifications.
+
+  The `callback` function is invoked for each untagged response received
+  while idling (e.g., `%Plover.Response.Mailbox.Exists{}`,
+  `%Plover.Response.Message.Expunge{}`).
+
+  Returns `:ok` once the server acknowledges IDLE. Call `idle_done/1`
+  to exit IDLE mode before issuing other commands.
+  """
+  @spec idle(pid(), (term() -> any())) :: :ok | {:error, term()}
   defdelegate idle(conn, callback), to: Connection
 
-  @doc "Exit IDLE mode."
+  @doc "Exits IDLE mode. Must be called before issuing other commands."
+  @spec idle_done(pid()) :: {:ok, term()} | {:error, term()}
   defdelegate idle_done(conn), to: Connection
 
   # UID variants
-  @doc "Fetch message data by UID."
+
+  @doc "Fetches message data by UID. See `fetch/3` for attribute options."
+  @spec uid_fetch(pid(), String.t(), [Plover.Types.fetch_attr()]) ::
+          {:ok, [Plover.Response.Message.Fetch.t()]} | {:error, term()}
   defdelegate uid_fetch(conn, sequence, attrs), to: Connection
 
-  @doc "Search for messages by UID."
+  @doc "Searches for messages by UID. See `search/2` for criteria format."
+  @spec uid_search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, term()}
   defdelegate uid_search(conn, criteria), to: Connection
 
-  @doc "Store flags on messages by UID."
+  @doc "Modifies flags on messages by UID. See `store/4` for action options."
+  @spec uid_store(pid(), String.t(), Plover.Types.store_action(), [Plover.Types.flag()]) ::
+          {:ok, term()} | {:error, term()}
   defdelegate uid_store(conn, sequence, action, flags), to: Connection
 
-  @doc "Copy messages to another mailbox by UID."
+  @doc "Copies messages to another mailbox by UID."
+  @spec uid_copy(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate uid_copy(conn, sequence, mailbox), to: Connection
 
-  @doc "Move messages to another mailbox by UID."
+  @doc "Moves messages to another mailbox by UID."
+  @spec uid_move(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate uid_move(conn, sequence, mailbox), to: Connection
 
-  @doc "Expunge messages by UID."
+  @doc "Expunges specific messages by UID, rather than all `\\Deleted` messages."
+  @spec uid_expunge(pid(), String.t()) :: {:ok, term()} | {:error, term()}
   defdelegate uid_expunge(conn, sequence), to: Connection
 end

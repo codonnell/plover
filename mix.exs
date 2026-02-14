@@ -10,7 +10,10 @@ defmodule Plover.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: [plt_add_apps: [:ssl]],
-      usage_rules: usage_rules()
+      usage_rules: usage_rules(),
+      package: package(),
+      source_url: "https://github.com/codonnell/plover",
+      homepage_url: "https://github.com/codonnell/plover"
     ]
   end
 
@@ -36,6 +39,14 @@ defmodule Plover.MixProject do
     [
       file: "CLAUDE.md",
       usage_rules: ["usage_rules:all"]
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/codonnell/plover"},
+      files: ~w(lib .formatter.exs mix.exs README* LICENSE* usage-rules.md)
     ]
   end
 end
