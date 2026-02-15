@@ -44,6 +44,7 @@ defmodule Plover.ResponseTest do
 
     test "creates an envelope with all fields" do
       addr = %Address{name: "John Doe", adl: nil, mailbox: "john", host: "example.com"}
+
       env = %Envelope{
         date: "Mon, 7 Feb 1994 21:52:25 -0800",
         subject: "Test Subject",
@@ -56,6 +57,7 @@ defmodule Plover.ResponseTest do
         in_reply_to: nil,
         message_id: "<test@example.com>"
       }
+
       assert env.subject == "Test Subject"
       assert hd(env.from).mailbox == "john"
     end
@@ -123,6 +125,7 @@ defmodule Plover.ResponseTest do
         delimiter: "/",
         name: "INBOX/Sent"
       }
+
       assert mb.delimiter == "/"
       assert :noselect in mb.flags
     end
@@ -135,8 +138,9 @@ defmodule Plover.ResponseTest do
         recent: 2,
         unseen: 5,
         uid_next: 4392,
-        uid_validity: 3857529045
+        uid_validity: 3_857_529_045
       }
+
       assert status.messages == 17
       assert status.uid_next == 4392
     end
@@ -168,6 +172,7 @@ defmodule Plover.ResponseTest do
           internal_date: nil
         }
       }
+
       assert fetch.seq == 12
       assert fetch.attrs.uid == 4827
     end

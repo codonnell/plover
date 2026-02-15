@@ -73,12 +73,12 @@ defmodule Plover.Protocol.ResponseEncoderTest do
       struct = %Tagged{
         tag: "A0001",
         status: :ok,
-        code: {:uid_validity, 3857529045},
+        code: {:uid_validity, 3_857_529_045},
         text: "UIDs valid"
       }
 
       parsed = round_trip(struct)
-      assert %Tagged{code: {:uid_validity, 3857529045}} = parsed
+      assert %Tagged{code: {:uid_validity, 3_857_529_045}} = parsed
     end
 
     test "OK with UIDNEXT response code" do

@@ -185,12 +185,22 @@ defmodule Plover.Protocol.CommandBuilderTest do
   # UID prefix commands
   describe "UID commands" do
     test "UID FETCH" do
-      cmd = %Command{tag: "A001", name: "UID FETCH", args: ["100:200", {:raw, "(FLAGS ENVELOPE)"}]}
+      cmd = %Command{
+        tag: "A001",
+        name: "UID FETCH",
+        args: ["100:200", {:raw, "(FLAGS ENVELOPE)"}]
+      }
+
       assert build(cmd) == "A001 UID FETCH 100:200 (FLAGS ENVELOPE)\r\n"
     end
 
     test "UID STORE" do
-      cmd = %Command{tag: "A001", name: "UID STORE", args: ["100", "+FLAGS.SILENT", {:raw, "(\\Seen)"}]}
+      cmd = %Command{
+        tag: "A001",
+        name: "UID STORE",
+        args: ["100", "+FLAGS.SILENT", {:raw, "(\\Seen)"}]
+      }
+
       assert build(cmd) == "A001 UID STORE 100 +FLAGS.SILENT (\\Seen)\r\n"
     end
 
@@ -220,19 +230,40 @@ defmodule Plover.Protocol.CommandBuilderTest do
   describe "APPEND command" do
     test "APPEND with literal" do
       message = "From: user@example.com\r\nSubject: Test\r\n\r\nBody"
-      cmd = %Command{tag: "A001", name: "APPEND", args: ["INBOX", {:raw, "(\\Seen)"}, {:literal, message}]}
+
+      cmd = %Command{
+        tag: "A001",
+        name: "APPEND",
+        args: ["INBOX", {:raw, "(\\Seen)"}, {:literal, message}]
+      }
 
       assert {:literal, first_part, literal_data} = CommandBuilder.build(cmd)
-      assert IO.iodata_to_binary(first_part) == "A001 APPEND INBOX (\\Seen) {#{byte_size(message)}}\r\n"
+
+      assert IO.iodata_to_binary(first_part) ==
+               "A001 APPEND INBOX (\\Seen) {#{byte_size(message)}}\r\n"
+
       assert literal_data == message
     end
 
     test "APPEND with flags and date" do
       message = "test"
-      cmd = %Command{tag: "A001", name: "APPEND", args: ["INBOX", {:raw, "(\\Seen \\Draft)"}, "25-Jan-2024 10:00:00 +0000", {:literal, message}]}
+
+      cmd = %Command{
+        tag: "A001",
+        name: "APPEND",
+        args: [
+          "INBOX",
+          {:raw, "(\\Seen \\Draft)"},
+          "25-Jan-2024 10:00:00 +0000",
+          {:literal, message}
+        ]
+      }
 
       assert {:literal, first_part, literal_data} = CommandBuilder.build(cmd)
-      assert IO.iodata_to_binary(first_part) == "A001 APPEND INBOX (\\Seen \\Draft) \"25-Jan-2024 10:00:00 +0000\" {4}\r\n"
+
+      assert IO.iodata_to_binary(first_part) ==
+               "A001 APPEND INBOX (\\Seen \\Draft) \"25-Jan-2024 10:00:00 +0000\" {4}\r\n"
+
       assert literal_data == message
     end
   end

@@ -178,54 +178,61 @@ defmodule Plover.Protocol.ResponseEncoder do
   defp encode_fetch_attrs(attrs) do
     parts = []
 
-    parts = if Map.has_key?(attrs, :flags) do
-      flag_str = attrs.flags |> Enum.map(&flag_to_wire/1) |> Enum.join(" ")
-      parts ++ ["FLAGS (#{flag_str})"]
-    else
-      parts
-    end
+    parts =
+      if Map.has_key?(attrs, :flags) do
+        flag_str = attrs.flags |> Enum.map(&flag_to_wire/1) |> Enum.join(" ")
+        parts ++ ["FLAGS (#{flag_str})"]
+      else
+        parts
+      end
 
-    parts = if Map.has_key?(attrs, :uid) do
-      parts ++ ["UID #{attrs.uid}"]
-    else
-      parts
-    end
+    parts =
+      if Map.has_key?(attrs, :uid) do
+        parts ++ ["UID #{attrs.uid}"]
+      else
+        parts
+      end
 
-    parts = if Map.has_key?(attrs, :internal_date) do
-      parts ++ ["INTERNALDATE \"#{attrs.internal_date}\""]
-    else
-      parts
-    end
+    parts =
+      if Map.has_key?(attrs, :internal_date) do
+        parts ++ ["INTERNALDATE \"#{attrs.internal_date}\""]
+      else
+        parts
+      end
 
-    parts = if Map.has_key?(attrs, :rfc822_size) do
-      parts ++ ["RFC822.SIZE #{attrs.rfc822_size}"]
-    else
-      parts
-    end
+    parts =
+      if Map.has_key?(attrs, :rfc822_size) do
+        parts ++ ["RFC822.SIZE #{attrs.rfc822_size}"]
+      else
+        parts
+      end
 
-    parts = if Map.has_key?(attrs, :envelope) do
-      parts ++ ["ENVELOPE #{encode_envelope(attrs.envelope)}"]
-    else
-      parts
-    end
+    parts =
+      if Map.has_key?(attrs, :envelope) do
+        parts ++ ["ENVELOPE #{encode_envelope(attrs.envelope)}"]
+      else
+        parts
+      end
 
-    parts = if Map.has_key?(attrs, :body_structure) do
-      parts ++ ["BODYSTRUCTURE #{encode_body_structure(attrs.body_structure)}"]
-    else
-      parts
-    end
+    parts =
+      if Map.has_key?(attrs, :body_structure) do
+        parts ++ ["BODYSTRUCTURE #{encode_body_structure(attrs.body_structure)}"]
+      else
+        parts
+      end
 
-    parts = if Map.has_key?(attrs, :body) do
-      body_parts =
-        Enum.map(attrs.body, fn {section, data} ->
-          size = byte_size(data)
-          "BODY[#{section}] {#{size}}\r\n#{data}"
-        end)
+    parts =
+      if Map.has_key?(attrs, :body) do
+        body_parts =
+          Enum.map(attrs.body, fn {section, data} ->
+            size = byte_size(data)
+            "BODY[#{section}] {#{size}}\r\n#{data}"
+          end)
 
-      parts ++ body_parts
-    else
-      parts
-    end
+        parts ++ body_parts
+      else
+        parts
+      end
 
     Enum.join(parts, " ")
   end

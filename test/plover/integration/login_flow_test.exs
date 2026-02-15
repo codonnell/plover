@@ -5,7 +5,12 @@ defmodule Plover.Integration.LoginFlowTest do
 
   defp setup_server do
     {:ok, socket} = Mock.connect("imap.example.com", 993, [])
-    Mock.enqueue(socket, "* OK [CAPABILITY IMAP4rev2 AUTH=PLAIN AUTH=XOAUTH2 IDLE] Server ready\r\n")
+
+    Mock.enqueue(
+      socket,
+      "* OK [CAPABILITY IMAP4rev2 AUTH=PLAIN AUTH=XOAUTH2 IDLE] Server ready\r\n"
+    )
+
     {:ok, conn} = Plover.connect("imap.example.com", 993, transport: Mock, socket: socket)
     {conn, socket}
   end

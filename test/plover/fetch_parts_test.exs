@@ -58,6 +58,7 @@ defmodule Plover.FetchPartsTest do
 
       # Part 1: quoted-printable ISO-8859-1 (é = 0xE9 in Latin-1)
       qp_raw = "caf=E9"
+
       qp_part = %BodyStructure{
         type: "TEXT",
         subtype: "PLAIN",
@@ -69,6 +70,7 @@ defmodule Plover.FetchPartsTest do
       # Part 2: base64 UTF-8
       b64_text = "Hello"
       b64_raw = Base.encode64(b64_text)
+
       b64_part = %BodyStructure{
         type: "TEXT",
         subtype: "HTML",

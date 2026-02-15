@@ -177,7 +177,9 @@ defmodule Plover.Transport.Mock do
     text = Keyword.get(opts, :text, "")
 
     untagged_wire = Enum.map(untagged, &ResponseEncoder.encode/1) |> IO.iodata_to_binary()
-    tagged_wire = ResponseEncoder.encode(%Tagged{tag: tag, status: status, code: code, text: text})
+
+    tagged_wire =
+      ResponseEncoder.encode(%Tagged{tag: tag, status: status, code: code, text: text})
 
     wire = untagged_wire <> tagged_wire
     new_inbox = :queue.in(wire, state.inbox)

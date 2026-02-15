@@ -63,6 +63,21 @@ defmodule Plover.ContentTest do
     test "empty string" do
       assert {:ok, ""} = Content.decode_quoted_printable("")
     end
+
+    test "passes through bare = followed by non-hex characters" do
+      input = "https://example.com?q=unknown"
+      assert {:ok, ^input} = Content.decode_quoted_printable(input)
+    end
+
+    test "passes through bare = at end of string" do
+      assert {:ok, "trailing="} = Content.decode_quoted_printable("trailing=")
+    end
+
+    test "handles mix of valid hex pairs and bare = with non-hex" do
+      input = "=C3=A9 and q=unknown"
+      {:ok, decoded} = Content.decode_quoted_printable(input)
+      assert decoded == "é and q=unknown"
+    end
   end
 
   describe "convert_charset/2" do
@@ -86,7 +101,8 @@ defmodule Plover.ContentTest do
     end
 
     test "ISO-8859-1 mixed ASCII and high bytes" do
-      latin1 = <<0x48, 0xE9, 0x6C, 0x6C, 0x6F>>  # Héllo
+      # Héllo
+      latin1 = <<0x48, 0xE9, 0x6C, 0x6C, 0x6F>>
       {:ok, result} = Content.convert_charset(latin1, "ISO-8859-1")
       assert result == "Héllo"
     end

@@ -6,9 +6,7 @@ defmodule Plover.Protocol.ParserPropertyTest do
 
   # Generate a valid IMAP tag (like A0001)
   defp tag_string do
-    gen all(
-          n <- StreamData.integer(1..9999)
-        ) do
+    gen all(n <- StreamData.integer(1..9999)) do
       "A" <> String.pad_leading(Integer.to_string(n), 4, "0")
     end
   end

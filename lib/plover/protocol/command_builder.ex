@@ -28,7 +28,10 @@ defmodule Plover.Protocol.CommandBuilder do
 
       {pre_args, literal_data, _post_args} ->
         size = byte_size(literal_data)
-        first_part = [tag, " ", name | encode_args(pre_args)] ++ [" {", Integer.to_string(size), "}\r\n"]
+
+        first_part =
+          [tag, " ", name | encode_args(pre_args)] ++ [" {", Integer.to_string(size), "}\r\n"]
+
         {:literal, first_part, literal_data}
     end
   end

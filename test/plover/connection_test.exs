@@ -71,7 +71,10 @@ defmodule Plover.ConnectionTest do
       {conn, socket} = start_connection()
 
       Mock.enqueue(socket, "A0001 OK AUTHENTICATE completed\r\n")
-      assert {:ok, _resp} = Connection.authenticate_xoauth2(conn, "user@example.com", "oauth_token")
+
+      assert {:ok, _resp} =
+               Connection.authenticate_xoauth2(conn, "user@example.com", "oauth_token")
+
       assert Connection.state(conn) == :authenticated
     end
   end
@@ -80,7 +83,11 @@ defmodule Plover.ConnectionTest do
     test "fetches capabilities" do
       {conn, socket} = start_connection()
 
-      Mock.enqueue(socket, "* CAPABILITY IMAP4rev2 AUTH=PLAIN IDLE\r\nA0001 OK CAPABILITY completed\r\n")
+      Mock.enqueue(
+        socket,
+        "* CAPABILITY IMAP4rev2 AUTH=PLAIN IDLE\r\nA0001 OK CAPABILITY completed\r\n"
+      )
+
       assert {:ok, caps} = Connection.capability(conn)
       assert "IMAP4rev2" in caps
       assert "IDLE" in caps

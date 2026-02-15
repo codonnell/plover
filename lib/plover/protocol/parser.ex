@@ -213,7 +213,12 @@ defmodule Plover.Protocol.Parser do
     {{:uid_validity, n}, rest}
   end
 
-  defp parse_resp_text_code([{:atom, "APPENDUID"}, {:number, uid_validity}, {:number, uid}, :rbracket | rest]) do
+  defp parse_resp_text_code([
+         {:atom, "APPENDUID"},
+         {:number, uid_validity},
+         {:number, uid},
+         :rbracket | rest
+       ]) do
     {{:append_uid, {uid_validity, uid}}, rest}
   end
 
@@ -222,10 +227,13 @@ defmodule Plover.Protocol.Parser do
     {dest_tokens, remaining} = collect_uid_set_tokens(remaining)
     source_set = uid_set_tokens_to_string(source_tokens)
     dest_set = uid_set_tokens_to_string(dest_tokens)
-    remaining = case remaining do
-      [:rbracket | r] -> r
-      r -> r
-    end
+
+    remaining =
+      case remaining do
+        [:rbracket | r] -> r
+        r -> r
+      end
+
     {{:copy_uid, {uid_validity, source_set, dest_set}}, remaining}
   end
 
@@ -337,7 +345,7 @@ defmodule Plover.Protocol.Parser do
 
     {delimiter, rest} =
       case rest do
-        [:nil | r] -> {nil, r}
+        [nil | r] -> {nil, r}
         [{:quoted_string, d} | r] -> {d, r}
         [{:atom, d} | r] -> {d, r}
       end
@@ -582,7 +590,7 @@ defmodule Plover.Protocol.Parser do
   # --- Address parsing ---
   # RFC 9051: address = "(" addr-name SP addr-adl SP addr-mailbox SP addr-host ")"
 
-  defp parse_address_list([:nil | rest]), do: {nil, rest}
+  defp parse_address_list([nil | rest]), do: {nil, rest}
 
   defp parse_address_list([:lparen | rest]) do
     parse_addresses(rest, [])
@@ -672,7 +680,7 @@ defmodule Plover.Protocol.Parser do
   end
 
   # body-fld-param = "(" string SP string *(SP string SP string) ")" / nil
-  defp parse_body_fld_param([:nil | rest]), do: {%{}, rest}
+  defp parse_body_fld_param([nil | rest]), do: {%{}, rest}
 
   defp parse_body_fld_param([:lparen | rest]) do
     parse_body_params(rest, %{})
@@ -719,8 +727,12 @@ defmodule Plover.Protocol.Parser do
     {Enum.reverse(acc) |> Enum.join(" "), rest}
   end
 
-  defp collect_paren_contents([{:atom, s} | rest], acc), do: collect_paren_contents(rest, [s | acc])
-  defp collect_paren_contents([{:quoted_string, s} | rest], acc), do: collect_paren_contents(rest, [s | acc])
+  defp collect_paren_contents([{:atom, s} | rest], acc),
+    do: collect_paren_contents(rest, [s | acc])
+
+  defp collect_paren_contents([{:quoted_string, s} | rest], acc),
+    do: collect_paren_contents(rest, [s | acc])
+
   defp collect_paren_contents([_ | rest], acc), do: collect_paren_contents(rest, acc)
 
   # Partial: "<" number ">"
@@ -739,7 +751,7 @@ defmodule Plover.Protocol.Parser do
 
   # --- Utility functions ---
 
-  defp parse_nstring([:nil | rest]), do: {nil, rest}
+  defp parse_nstring([nil | rest]), do: {nil, rest}
   defp parse_nstring([{:quoted_string, s} | rest]), do: {s, rest}
   defp parse_nstring([{:literal, s} | rest]), do: {s, rest}
   defp parse_nstring([{:atom, "NIL"} | rest]), do: {nil, rest}
@@ -748,7 +760,7 @@ defmodule Plover.Protocol.Parser do
   defp parse_string_value([{:quoted_string, s} | rest]), do: {s, rest}
   defp parse_string_value([{:literal, s} | rest]), do: {s, rest}
   defp parse_string_value([{:atom, s} | rest]), do: {s, rest}
-  defp parse_string_value([:nil | rest]), do: {nil, rest}
+  defp parse_string_value([nil | rest]), do: {nil, rest}
   defp parse_string_value(rest), do: {nil, rest}
 
   defp parse_number([{:number, n} | rest]), do: {n, rest}

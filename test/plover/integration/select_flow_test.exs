@@ -89,7 +89,9 @@ defmodule Plover.Integration.SelectFlowTest do
         "A0002 OK STATUS completed\r\n"
     )
 
-    assert {:ok, status} = Plover.status(conn, "INBOX", [:messages, :uid_next, :uid_validity, :unseen])
+    assert {:ok, status} =
+             Plover.status(conn, "INBOX", [:messages, :uid_next, :uid_validity, :unseen])
+
     assert status.messages == 231
     assert status.uid_next == 44292
     assert status.uid_validity == 1

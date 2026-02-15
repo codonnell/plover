@@ -21,9 +21,7 @@ defmodule Plover.SequenceSetPropertyTest do
   end
 
   property "format then parse round-trips" do
-    check all(
-            elements <- StreamData.list_of(seq_element(), min_length: 1, max_length: 5)
-          ) do
+    check all(elements <- StreamData.list_of(seq_element(), min_length: 1, max_length: 5)) do
       formatted = SequenceSet.format(elements)
       assert is_binary(formatted)
       assert {:ok, parsed} = SequenceSet.parse(formatted)
@@ -65,7 +63,8 @@ defmodule Plover.SequenceSetPropertyTest do
 
   property "parsed sets have valid structure" do
     check all(
-            nums <- StreamData.list_of(StreamData.positive_integer(), min_length: 1, max_length: 5)
+            nums <-
+              StreamData.list_of(StreamData.positive_integer(), min_length: 1, max_length: 5)
           ) do
       # Build a comma-separated sequence set string
       str = Enum.join(nums, ",")

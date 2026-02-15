@@ -18,17 +18,28 @@ defmodule Plover.Protocol.Tokenizer do
   # Allowed: printable ASCII 0x21-0x7E except ( ) { % * " \ ]
   atom_char =
     utf8_char([
-      0x21,         # !
-      0x23..0x27,   # # $ % & '
-      0x2B..0x2F,   # + , - . /
-      0x30..0x39,   # 0-9
-      0x3A..0x3F,   # : ; < = > ?
-      0x40,         # @
-      0x41..0x5A,   # A-Z
-      0x5E..0x60,   # ^ _ `
-      0x61..0x7A,   # a-z
-      0x7C,         # |
-      0x7E          # ~
+      # !
+      0x21,
+      # # $ % & '
+      0x23..0x27,
+      # + , - . /
+      0x2B..0x2F,
+      # 0-9
+      0x30..0x39,
+      # : ; < = > ?
+      0x3A..0x3F,
+      # @
+      0x40,
+      # A-Z
+      0x41..0x5A,
+      # ^ _ `
+      0x5E..0x60,
+      # a-z
+      0x61..0x7A,
+      # |
+      0x7C,
+      # ~
+      0x7E
     ])
 
   # Flag: "\" followed by atom chars OR "\*"
@@ -53,7 +64,7 @@ defmodule Plover.Protocol.Tokenizer do
   nil_token =
     string("NIL")
     |> lookahead_not(atom_char)
-    |> replace(:nil)
+    |> replace(nil)
 
   # Atom: 1+ ATOM-CHARs
   atom_token =

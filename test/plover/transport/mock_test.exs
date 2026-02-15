@@ -47,14 +47,15 @@ defmodule Plover.Transport.MockTest do
     parent = self()
     Mock.enqueue(socket, "data\r\n")
 
-    task = Task.async(fn ->
-      receive do
-        :take_over ->
-          :ok = Mock.setopts(socket, active: :once)
-          assert_receive {:mock_ssl, ^socket, ~c"data\r\n"}
-          send(parent, :received)
-      end
-    end)
+    task =
+      Task.async(fn ->
+        receive do
+          :take_over ->
+            :ok = Mock.setopts(socket, active: :once)
+            assert_receive {:mock_ssl, ^socket, ~c"data\r\n"}
+            send(parent, :received)
+        end
+      end)
 
     :ok = Mock.controlling_process(socket, task.pid)
     send(task.pid, :take_over)

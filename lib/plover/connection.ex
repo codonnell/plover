@@ -227,7 +227,15 @@ defmodule Plover.Connection do
     case iodata do
       {:literal, first_part, literal_data} ->
         :ok = state.transport.send(state.socket, first_part)
-        pending = Map.put(state.pending, tag, %{from: from, command: name, responses: [], literal: literal_data})
+
+        pending =
+          Map.put(state.pending, tag, %{
+            from: from,
+            command: name,
+            responses: [],
+            literal: literal_data
+          })
+
         state = %{state | pending: pending}
         :ok = state.transport.setopts(state.socket, active: :once)
         {:noreply, state}
@@ -317,12 +325,14 @@ defmodule Plover.Connection do
   # --- Response dispatch ---
 
   # Greeting (untagged OK/PREAUTH/BYE when no pending commands)
-  defp dispatch_response({:ok, code, _text}, %State{} = state) when map_size(state.pending) == 0 and state.idle_state == nil do
+  defp dispatch_response({:ok, code, _text}, %State{} = state)
+       when map_size(state.pending) == 0 and state.idle_state == nil do
     state = maybe_store_capabilities(code, state)
     state
   end
 
-  defp dispatch_response({:preauth, code, _text}, %State{} = state) when map_size(state.pending) == 0 do
+  defp dispatch_response({:preauth, code, _text}, %State{} = state)
+       when map_size(state.pending) == 0 do
     state = maybe_store_capabilities(code, state)
     %{state | conn_state: :authenticated}
   end
@@ -521,10 +531,12 @@ defmodule Plover.Connection do
         {:ok, fetches}
 
       cmd when cmd in ["SEARCH", "UID SEARCH"] ->
-        esearch = Enum.find(responses, fn
-          %ESearch{} -> true
-          _ -> false
-        end)
+        esearch =
+          Enum.find(responses, fn
+            %ESearch{} -> true
+            _ -> false
+          end)
+
         {:ok, esearch || %ESearch{}}
 
       "LIST" ->
@@ -532,10 +544,12 @@ defmodule Plover.Connection do
         {:ok, lists}
 
       "STATUS" ->
-        status = Enum.find(responses, fn
-          %Mailbox.Status{} -> true
-          _ -> false
-        end)
+        status =
+          Enum.find(responses, fn
+            %Mailbox.Status{} -> true
+            _ -> false
+          end)
+
         {:ok, status}
 
       _ ->

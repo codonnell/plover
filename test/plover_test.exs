@@ -48,7 +48,11 @@ defmodule PloverTest do
       Mock.enqueue(socket, "A0001 OK LOGIN completed\r\n")
       {:ok, _} = Plover.login(conn, "user", "pass")
 
-      Mock.enqueue(socket, "* 172 EXISTS\r\n* FLAGS (\\Seen)\r\nA0002 OK [READ-WRITE] SELECT completed\r\n")
+      Mock.enqueue(
+        socket,
+        "* 172 EXISTS\r\n* FLAGS (\\Seen)\r\nA0002 OK [READ-WRITE] SELECT completed\r\n"
+      )
+
       assert {:ok, _} = Plover.select(conn, "INBOX")
     end
   end

@@ -32,7 +32,7 @@ defmodule Plover.Integration.AppendFlowTest do
     assert append_cmd =~ "APPEND INBOX {#{size}}"
 
     # Verify the literal data was sent
-    assert message <> "\r\n" in sent
+    assert (message <> "\r\n") in sent
   end
 
   test "APPEND with flags and date" do

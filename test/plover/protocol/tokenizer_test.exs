@@ -27,7 +27,7 @@ defmodule Plover.Protocol.TokenizerTest do
     end
 
     test "NIL atom" do
-      assert Tokenizer.tokenize("NIL\r\n") == {:ok, [:nil, :crlf], ""}
+      assert Tokenizer.tokenize("NIL\r\n") == {:ok, [nil, :crlf], ""}
     end
   end
 
@@ -186,14 +186,24 @@ defmodule Plover.Protocol.TokenizerTest do
       # RFC 9051 Section 7 example
       input = "* OK IMAP4rev2 server ready\r\n"
 
-      assert {:ok, [:star, {:atom, "OK"}, {:atom, "IMAP4rev2"}, {:atom, "server"}, {:atom, "ready"}, :crlf], ""} =
+      assert {:ok,
+              [
+                :star,
+                {:atom, "OK"},
+                {:atom, "IMAP4rev2"},
+                {:atom, "server"},
+                {:atom, "ready"},
+                :crlf
+              ], ""} =
                Tokenizer.tokenize(input)
     end
 
     test "tagged OK response" do
       input = "A001 OK SELECT completed\r\n"
 
-      assert {:ok, [{:atom, "A001"}, {:atom, "OK"}, {:atom, "SELECT"}, {:atom, "completed"}, :crlf], ""} =
+      assert {:ok,
+              [{:atom, "A001"}, {:atom, "OK"}, {:atom, "SELECT"}, {:atom, "completed"}, :crlf],
+              ""} =
                Tokenizer.tokenize(input)
     end
 
@@ -426,7 +436,8 @@ defmodule Plover.Protocol.TokenizerTest do
   describe "FETCH with envelope" do
     test "tokenizes envelope components" do
       # Simplified envelope - verifying parenthesized structure tokenizes
-      input = "* 1 FETCH (ENVELOPE (\"Mon, 7 Feb 1994 21:52:25 -0800\" \"Test\" ((\"John\" NIL \"john\" \"example.com\")) NIL NIL NIL NIL NIL NIL NIL))\r\n"
+      input =
+        "* 1 FETCH (ENVELOPE (\"Mon, 7 Feb 1994 21:52:25 -0800\" \"Test\" ((\"John\" NIL \"john\" \"example.com\")) NIL NIL NIL NIL NIL NIL NIL))\r\n"
 
       assert {:ok, tokens, ""} = Tokenizer.tokenize(input)
       assert :star == hd(tokens)
@@ -462,7 +473,7 @@ defmodule Plover.Protocol.TokenizerTest do
                 {:atom, "LIST"},
                 :lparen,
                 :rparen,
-                :nil,
+                nil,
                 {:atom, "INBOX"},
                 :crlf
               ], ""} = Tokenizer.tokenize(input)

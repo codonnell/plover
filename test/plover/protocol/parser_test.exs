@@ -31,12 +31,18 @@ defmodule Plover.Protocol.ParserTest do
 
     test "tagged OK with response code" do
       # RFC 9051 Section 7.1: resp-text = ["[" resp-text-code "]" SP] [text]
-      assert {:ok, %Tagged{tag: "A001", status: :ok, code: {:read_write, nil}, text: "SELECT completed"}} =
+      assert {:ok,
+              %Tagged{
+                tag: "A001",
+                status: :ok,
+                code: {:read_write, nil},
+                text: "SELECT completed"
+              }} =
                parse("A001 OK [READ-WRITE] SELECT completed\r\n")
     end
 
     test "tagged OK with UIDVALIDITY response code" do
-      assert {:ok, %Tagged{tag: "A001", status: :ok, code: {:uid_validity, 3857529045}}} =
+      assert {:ok, %Tagged{tag: "A001", status: :ok, code: {:uid_validity, 3_857_529_045}}} =
                parse("A001 OK [UIDVALIDITY 3857529045] UIDs valid\r\n")
     end
 
@@ -80,7 +86,12 @@ defmodule Plover.Protocol.ParserTest do
 
     test "tagged OK with COPYUID code" do
       # RFC 9051 Section 7.1: resp-code-copy = "COPYUID" SP nz-number SP uid-set SP uid-set
-      assert {:ok, %Tagged{tag: "A003", status: :ok, code: {:copy_uid, {38505, "304,319:320", "3956:3958"}}}} =
+      assert {:ok,
+              %Tagged{
+                tag: "A003",
+                status: :ok,
+                code: {:copy_uid, {38505, "304,319:320", "3956:3958"}}
+              }} =
                parse("A003 OK [COPYUID 38505 304,319:320 3956:3958] COPY completed\r\n")
     end
 
@@ -202,7 +213,13 @@ defmodule Plover.Protocol.ParserTest do
     end
 
     test "parses STATUS with all attributes" do
-      assert {:ok, %Mailbox.Status{name: "INBOX", messages: 17, uid_next: 4392, uid_validity: 3857529045}} =
+      assert {:ok,
+              %Mailbox.Status{
+                name: "INBOX",
+                messages: 17,
+                uid_next: 4392,
+                uid_validity: 3_857_529_045
+              }} =
                parse("* STATUS \"INBOX\" (MESSAGES 17 UIDNEXT 4392 UIDVALIDITY 3857529045)\r\n")
     end
   end
@@ -236,7 +253,7 @@ defmodule Plover.Protocol.ParserTest do
   # RFC 9051 Section 7.1 - untagged OK
   describe "untagged OK" do
     test "parses OK with response code" do
-      assert {:ok, {:ok, {:uid_validity, 3857529045}, "UIDs valid"}} =
+      assert {:ok, {:ok, {:uid_validity, 3_857_529_045}, "UIDs valid"}} =
                parse("* OK [UIDVALIDITY 3857529045] UIDs valid\r\n")
     end
 
@@ -305,7 +322,8 @@ defmodule Plover.Protocol.ParserTest do
     end
 
     test "parses FETCH with ENVELOPE" do
-      input = "* 1 FETCH (ENVELOPE (\"Mon, 7 Feb 1994 21:52:25 -0800\" \"Test Subject\" ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"Jane Smith\" NIL \"jane\" \"example.com\")) NIL NIL NIL \"<B27397-0100000@example.com>\"))\r\n"
+      input =
+        "* 1 FETCH (ENVELOPE (\"Mon, 7 Feb 1994 21:52:25 -0800\" \"Test Subject\" ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"Jane Smith\" NIL \"jane\" \"example.com\")) NIL NIL NIL \"<B27397-0100000@example.com>\"))\r\n"
 
       assert {:ok, %Message.Fetch{seq: 1, attrs: attrs}} = parse(input)
       env = attrs.envelope
@@ -335,7 +353,8 @@ defmodule Plover.Protocol.ParserTest do
 
     test "parses FETCH with BODYSTRUCTURE" do
       # Simple text/plain body structure
-      input = "* 1 FETCH (BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"UTF-8\") NIL NIL \"7BIT\" 1234 56))\r\n"
+      input =
+        "* 1 FETCH (BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"UTF-8\") NIL NIL \"7BIT\" 1234 56))\r\n"
 
       assert {:ok, %Message.Fetch{seq: 1, attrs: attrs}} = parse(input)
       bs = attrs.body_structure
@@ -350,7 +369,8 @@ defmodule Plover.Protocol.ParserTest do
 
     test "parses FETCH with multipart BODYSTRUCTURE" do
       # multipart/alternative with two text parts
-      input = "* 1 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"UTF-8\") NIL NIL \"7BIT\" 100 5)(\"TEXT\" \"HTML\" (\"CHARSET\" \"UTF-8\") NIL NIL \"QUOTED-PRINTABLE\" 500 20) \"ALTERNATIVE\"))\r\n"
+      input =
+        "* 1 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"UTF-8\") NIL NIL \"7BIT\" 100 5)(\"TEXT\" \"HTML\" (\"CHARSET\" \"UTF-8\") NIL NIL \"QUOTED-PRINTABLE\" 500 20) \"ALTERNATIVE\"))\r\n"
 
       assert {:ok, %Message.Fetch{seq: 1, attrs: attrs}} = parse(input)
       bs = attrs.body_structure
@@ -364,7 +384,8 @@ defmodule Plover.Protocol.ParserTest do
     end
 
     test "parses FETCH with all common attributes" do
-      input = "* 1 FETCH (FLAGS (\\Seen) UID 100 RFC822.SIZE 4286 INTERNALDATE \"17-Jul-1996 02:44:25 -0700\")\r\n"
+      input =
+        "* 1 FETCH (FLAGS (\\Seen) UID 100 RFC822.SIZE 4286 INTERNALDATE \"17-Jul-1996 02:44:25 -0700\")\r\n"
 
       assert {:ok, %Message.Fetch{seq: 1, attrs: attrs}} = parse(input)
       assert attrs.flags == [:seen]

@@ -61,7 +61,13 @@ defmodule Plover.Protocol.TokenizerPropertyTest do
   end
 
   property "quoted strings with escapes round-trip" do
-    check all(parts <- StreamData.list_of(StreamData.member_of(["hello", "\\\"", "\\\\"]), min_length: 1, max_length: 5)) do
+    check all(
+            parts <-
+              StreamData.list_of(StreamData.member_of(["hello", "\\\"", "\\\\"]),
+                min_length: 1,
+                max_length: 5
+              )
+          ) do
       escaped = Enum.join(parts)
       input = "\"#{escaped}\"\r\n"
       {:ok, [{:quoted_string, unescaped}, :crlf], ""} = Tokenizer.tokenize(input)
