@@ -20,7 +20,8 @@ defmodule Plover do
   (implicit TLS on port 993).
   """
 
-  alias Plover.Connection
+  alias Plover.{BodyStructure, Connection, Content}
+  alias Plover.Response.BodyStructure, as: BS
 
   @default_port 993
 
@@ -48,7 +49,27 @@ defmodule Plover do
     connect(host, Keyword.get(opts, :port, @default_port), opts)
   end
 
-  @doc false
+  @doc """
+  Connects to an IMAP server on the given port over implicit TLS.
+
+  This 3-arity form is useful for testing with `Plover.Transport.Mock`,
+  where the port is passed as a positional argument alongside transport
+  options.
+
+  ## Options
+
+    * `:transport` - transport module (default: `Plover.Transport.SSL`)
+    * `:socket` - pre-established socket (for testing with `Plover.Transport.Mock`)
+    * `:ssl_opts` - additional SSL options
+
+  ## Examples
+
+      # Testing with the mock transport
+      {:ok, socket} = Plover.Transport.Mock.connect("imap.example.com", 993, [])
+      Mock.enqueue_greeting(socket, capabilities: ["IMAP4rev2"])
+      {:ok, conn} = Plover.connect("imap.example.com", 993, transport: Mock, socket: socket)
+
+  """
   @spec connect(String.t(), :inet.port_number(), keyword()) :: {:ok, pid()} | {:error, term()}
   def connect(host, port, opts) do
     transport = Keyword.get(opts, :transport, Plover.Transport.SSL)
@@ -302,6 +323,60 @@ defmodule Plover do
   @spec uid_fetch(pid(), String.t(), [Plover.Types.fetch_attr()]) ::
           {:ok, [Plover.Response.Message.Fetch.t()]} | {:error, term()}
   defdelegate uid_fetch(conn, sequence, attrs), to: Connection
+
+  @doc """
+  Fetches and decodes body parts for a message by UID.
+
+  Accepts the `{section, %BodyStructure{}}` tuples returned by
+  `Plover.BodyStructure.find_parts/2` or `Plover.BodyStructure.flatten/1`,
+  fetches the raw content for each section using `BODY.PEEK` (which does not
+  set the `\\Seen` flag), and decodes it automatically.
+
+  Text parts (`text/*`) are both transfer-decoded and charset-converted to
+  UTF-8. All other parts are transfer-decoded only, returning raw bytes.
+
+  Returns `{:ok, [{section, decoded_binary}]}` in the same order as the
+  input, or `{:error, response}` if the FETCH command fails.
+
+  ## Examples
+
+      # Fetch and decode the text/plain part
+      [{section, part}] = Plover.BodyStructure.find_parts(bs, "text/plain")
+      {:ok, [{"1", text}]} = Plover.fetch_parts(conn, uid, [{section, part}])
+
+      # Fetch multiple parts at once
+      parts = Plover.BodyStructure.find_parts(bs, "text/*")
+      {:ok, decoded} = Plover.fetch_parts(conn, uid, parts)
+
+  """
+  @spec fetch_parts(pid(), String.t(), [{String.t(), BS.t()}]) ::
+          {:ok, [{String.t(), binary()}]} | {:error, term()}
+  def fetch_parts(_conn, _uid, []), do: {:ok, []}
+
+  def fetch_parts(conn, uid, parts) do
+    fetch_attrs = Enum.map(parts, fn {section, _} -> {:body_peek, section} end)
+
+    with {:ok, [msg]} <- uid_fetch(conn, uid, fetch_attrs) do
+      decoded =
+        Enum.map(parts, fn {section, part} ->
+          raw = msg.attrs.body[section]
+          {:ok, data} = decode_part(raw, part)
+          {section, data}
+        end)
+
+      {:ok, decoded}
+    end
+  end
+
+  defp decode_part(raw, %BS{} = part) do
+    encoding = BodyStructure.encoding(part)
+
+    if String.upcase(part.type || "") == "TEXT" do
+      Content.decode(raw, encoding, BodyStructure.charset(part))
+    else
+      Content.decode(raw, encoding)
+    end
+  end
 
   @doc "Searches for messages by UID. See `search/2` for criteria format."
   @spec uid_search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, term()}

@@ -14,7 +14,8 @@ defmodule Plover.MixProject do
       usage_rules: usage_rules(),
       package: package(),
       source_url: "https://github.com/codonnell/plover",
-      homepage_url: "https://github.com/codonnell/plover"
+      homepage_url: "https://github.com/codonnell/plover",
+      docs: docs()
     ]
   end
 
@@ -45,6 +46,13 @@ defmodule Plover.MixProject do
     [
       file: "CLAUDE.md",
       usage_rules: ["usage_rules:all"]
+    ]
+  end
+
+  defp docs do
+    [
+      extras: ["guides/email-content.md", "guides/testing.md"],
+      groups_for_extras: [Guides: ~r/guides\/.*/]
     ]
   end
 
