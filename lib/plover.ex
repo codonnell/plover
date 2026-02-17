@@ -357,14 +357,22 @@ defmodule Plover do
     fetch_attrs = Enum.map(parts, fn {section, _} -> {:body_peek, section} end)
 
     with {:ok, [msg]} <- uid_fetch(conn, uid, fetch_attrs) do
-      decoded =
-        Enum.map(parts, fn {section, part} ->
-          raw = msg.attrs.body[section]
-          {:ok, data} = decode_part(raw, part)
-          {section, data}
-        end)
+      decode_all(parts, msg)
+    end
+  end
 
-      {:ok, decoded}
+  defp decode_all(parts, msg) do
+    Enum.reduce_while(parts, {:ok, []}, fn {section, part}, {:ok, acc} ->
+      raw = msg.attrs.body[section]
+
+      case decode_part(raw, part) do
+        {:ok, data} -> {:cont, {:ok, [{section, data} | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      error -> error
     end
   end
 

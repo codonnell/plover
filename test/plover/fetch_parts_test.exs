@@ -135,6 +135,27 @@ defmodule Plover.FetchPartsTest do
       assert {:error, _} = Plover.fetch_parts(conn, "100", [{"1", part}])
     end
 
+    test "returns error when a part has invalid encoding" do
+      {conn, socket} = setup_selected()
+
+      invalid_b64 = "this!!!not-base64"
+
+      part = %BodyStructure{
+        type: "TEXT",
+        subtype: "PLAIN",
+        params: %{"CHARSET" => "UTF-8"},
+        encoding: "BASE64",
+        size: byte_size(invalid_b64)
+      }
+
+      Mock.enqueue_response(socket, :ok,
+        untagged: [%Message.Fetch{seq: 1, attrs: %{body: %{"1" => invalid_b64}}}],
+        text: "FETCH completed"
+      )
+
+      assert {:error, _} = Plover.fetch_parts(conn, "100", [{"1", part}])
+    end
+
     test "empty parts list returns ok with empty list" do
       {conn, _socket} = setup_selected()
 
