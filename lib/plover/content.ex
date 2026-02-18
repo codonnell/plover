@@ -17,6 +17,63 @@ defmodule Plover.Content do
       {:ok, utf8_text} = Plover.Content.decode(raw, "BASE64", "Windows-1252")
   """
 
+  @encoded_word_re ~r/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/
+
+  @doc """
+  Decode RFC 2047 encoded-words in a header value.
+
+  Encoded-words have the form `=?charset?encoding?text?=` where encoding is
+  `B` (base64) or `Q` (quoted-printable with `_` for space). Adjacent
+  encoded-words separated only by whitespace are concatenated per RFC 2047
+  Section 6.2.
+
+  Returns `{:ok, decoded_string}`. Passes through `nil` and plain strings
+  that contain no encoded-words.
+  """
+  @spec decode_encoded_words(String.t() | nil) :: {:ok, String.t() | nil}
+  def decode_encoded_words(nil), do: {:ok, nil}
+  def decode_encoded_words(""), do: {:ok, ""}
+
+  def decode_encoded_words(text) do
+    # Collapse whitespace between adjacent encoded-words (RFC 2047 §6.2)
+    collapsed = Regex.replace(~r/\?=\s+=\?/, text, "?==?")
+
+    result =
+      Regex.split(@encoded_word_re, collapsed, include_captures: true)
+      |> Enum.map_join(fn part ->
+        case Regex.run(@encoded_word_re, part) do
+          [_, charset, encoding, encoded_text] ->
+            decode_word(charset, encoding, encoded_text)
+
+          _ ->
+            part
+        end
+      end)
+
+    {:ok, result}
+  end
+
+  defp decode_word(charset, encoding, text) do
+    decoded =
+      case String.upcase(encoding) do
+        "B" ->
+          case Base.decode64(text) do
+            {:ok, bytes} -> bytes
+            :error -> text
+          end
+
+        "Q" ->
+          text
+          |> String.replace("_", " ")
+          |> decode_qp(<<>>)
+      end
+
+    case convert_charset(decoded, charset) do
+      {:ok, converted} -> converted
+      _ -> decoded
+    end
+  end
+
   @doc """
   Decode content using the specified transfer encoding.
 

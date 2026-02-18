@@ -335,6 +335,24 @@ defmodule Plover.Protocol.ParserTest do
       assert env.message_id == "<B27397-0100000@example.com>"
     end
 
+    test "decodes RFC 2047 encoded-words in ENVELOPE subject" do
+      # =?UTF-8?B?Y2Fmw6k=?= is base64 for "café"
+      input =
+        "* 1 FETCH (ENVELOPE (\"Mon, 7 Feb 1994 21:52:25 -0800\" \"=?UTF-8?B?Y2Fmw6k=?=\" ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"John Doe\" NIL \"john\" \"example.com\")) ((\"Jane Smith\" NIL \"jane\" \"example.com\")) NIL NIL NIL \"<B27397-0100000@example.com>\"))\r\n"
+
+      assert {:ok, %Message.Fetch{seq: 1, attrs: attrs}} = parse(input)
+      assert attrs.envelope.subject == "café"
+    end
+
+    test "decodes RFC 2047 encoded-words in ENVELOPE address name" do
+      # =?UTF-8?Q?caf=C3=A9?= is QP for "café"
+      input =
+        "* 1 FETCH (ENVELOPE (\"Mon, 7 Feb 1994 21:52:25 -0800\" \"Test\" ((\"=?UTF-8?Q?caf=C3=A9?=\" NIL \"john\" \"example.com\")) ((\"=?UTF-8?Q?caf=C3=A9?=\" NIL \"john\" \"example.com\")) ((\"=?UTF-8?Q?caf=C3=A9?=\" NIL \"john\" \"example.com\")) ((NIL NIL \"jane\" \"example.com\")) NIL NIL NIL \"<B27397-0100000@example.com>\"))\r\n"
+
+      assert {:ok, %Message.Fetch{seq: 1, attrs: attrs}} = parse(input)
+      assert [%Address{name: "café"}] = attrs.envelope.from
+    end
+
     test "parses FETCH with BODY[] literal" do
       input = "* 1 FETCH (BODY[] {11}\r\nHello World)\r\n"
 

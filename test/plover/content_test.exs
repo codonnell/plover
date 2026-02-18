@@ -131,6 +131,67 @@ defmodule Plover.ContentTest do
     end
   end
 
+  describe "decode_encoded_words/1" do
+    test "decodes a single base64 encoded-word" do
+      input = "=?UTF-8?B?SGVsbG8=?="
+      assert {:ok, "Hello"} = Content.decode_encoded_words(input)
+    end
+
+    test "decodes a single Q encoded-word" do
+      input = "=?UTF-8?Q?caf=C3=A9?="
+      assert {:ok, "café"} = Content.decode_encoded_words(input)
+    end
+
+    test "Q encoding replaces underscores with spaces" do
+      input = "=?UTF-8?Q?Hello_World?="
+      assert {:ok, "Hello World"} = Content.decode_encoded_words(input)
+    end
+
+    test "concatenates adjacent encoded-words, dropping whitespace between them" do
+      input =
+        "=?UTF-8?B?SGVhbHRoIGNhcmUgY29zdHMgYXJlIG9uIHRoZSByaXNlIOKAlCBi?= =?UTF-8?B?ZSByZWFkeSB0byBtZWV0IHRoZW0=?="
+
+      assert {:ok, decoded} = Content.decode_encoded_words(input)
+      assert decoded == "Health care costs are on the rise — be ready to meet them"
+    end
+
+    test "concatenates adjacent encoded-words separated by newline and space (folding)" do
+      input =
+        "=?UTF-8?B?SGVsbG8=?=\r\n =?UTF-8?B?V29ybGQ=?="
+
+      assert {:ok, "HelloWorld"} = Content.decode_encoded_words(input)
+    end
+
+    test "preserves text around encoded-words" do
+      input = "Re: =?UTF-8?B?Y2Fmw6k=?= was great"
+      assert {:ok, "Re: café was great"} = Content.decode_encoded_words(input)
+    end
+
+    test "returns plain text unchanged" do
+      input = "Just a normal subject"
+      assert {:ok, ^input} = Content.decode_encoded_words(input)
+    end
+
+    test "handles ISO-8859-1 charset" do
+      # 0xE9 = é in Latin-1
+      input = "=?ISO-8859-1?Q?caf=E9?="
+      assert {:ok, "café"} = Content.decode_encoded_words(input)
+    end
+
+    test "handles case-insensitive encoding and charset" do
+      input = "=?utf-8?b?SGVsbG8=?="
+      assert {:ok, "Hello"} = Content.decode_encoded_words(input)
+    end
+
+    test "handles empty string" do
+      assert {:ok, ""} = Content.decode_encoded_words("")
+    end
+
+    test "handles nil" do
+      assert {:ok, nil} = Content.decode_encoded_words(nil)
+    end
+  end
+
   describe "decode/2 (encoding only)" do
     test "BASE64" do
       encoded = Base.encode64("test data")

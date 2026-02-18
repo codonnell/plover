@@ -8,6 +8,7 @@ defmodule Plover.Protocol.Parser do
   RFC 9051 Section 7 - Server Responses
   """
 
+  alias Plover.Content
   alias Plover.Response.{Tagged, Continuation, Envelope, Address, BodyStructure, ESearch}
   alias Plover.Response.Mailbox
   alias Plover.Response.Message
@@ -571,6 +572,8 @@ defmodule Plover.Protocol.Parser do
     {message_id, rest} = parse_nstring(rest)
     rest = skip_rparen(rest)
 
+    {:ok, subject} = Content.decode_encoded_words(subject)
+
     envelope = %Envelope{
       date: date,
       subject: subject,
@@ -604,6 +607,7 @@ defmodule Plover.Protocol.Parser do
     {mailbox, rest} = parse_nstring(rest)
     {host, rest} = parse_nstring(rest)
     rest = skip_rparen(rest)
+    {:ok, name} = Content.decode_encoded_words(name)
     addr = %Address{name: name, adl: adl, mailbox: mailbox, host: host}
     parse_addresses(rest, [addr | acc])
   end
