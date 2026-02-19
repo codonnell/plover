@@ -206,7 +206,26 @@ defmodule Plover.Connection do
     # Set active: :once to receive the greeting
     :ok = transport.setopts(socket, active: :once)
 
-    {:ok, state}
+    # Process the IMAP greeting synchronously so callers can
+    # send commands immediately after start_link returns
+    transport_tag = transport.tag()
+
+    receive do
+      {^transport_tag, _socket, data} ->
+        buffer = IO.iodata_to_binary(data)
+        state = %{state | buffer: buffer}
+        state = process_buffer(state)
+
+        # Re-arm active mode for unsolicited response listening
+        if state.on_unsolicited_response != nil do
+          :ok = transport.setopts(socket, active: :once)
+        end
+
+        {:ok, state}
+    after
+      5_000 ->
+        {:stop, :greeting_timeout}
+    end
   end
 
   @impl true
@@ -290,6 +309,10 @@ defmodule Plover.Connection do
       :ok = state.transport.setopts(state.socket, active: :once)
     end
 
+    # Flush deferred replies AFTER re-arming active mode to prevent
+    # callers from enqueuing new data before the socket is listening
+    state = flush_deferred_replies(state)
+
     {:noreply, state}
   end
 
@@ -357,8 +380,7 @@ defmodule Plover.Connection do
         state = %{state | pending: pending}
         state = apply_state_transition(command, resp, state)
         reply = build_reply(command, resp, responses)
-        GenServer.reply(from, reply)
-        state
+        %{state | deferred_replies: [{from, reply} | state.deferred_replies]}
     end
   end
 
@@ -367,8 +389,7 @@ defmodule Plover.Connection do
     case state.idle_state do
       %{from: from} ->
         # IDLE continuation — tell caller we're now idling
-        GenServer.reply(from, :ok)
-        state
+        %{state | deferred_replies: [{from, :ok} | state.deferred_replies]}
 
       nil ->
         # Could be AUTHENTICATE or APPEND continuation
@@ -598,6 +619,13 @@ defmodule Plover.Connection do
   defp update_mailbox_info(%State{} = state, key, value) do
     info = state.mailbox_info || %{}
     %{state | mailbox_info: Map.put(info, key, value)}
+  end
+
+  defp flush_deferred_replies(%State{deferred_replies: []} = state), do: state
+
+  defp flush_deferred_replies(%State{deferred_replies: replies} = state) do
+    replies |> Enum.reverse() |> Enum.each(fn {from, reply} -> GenServer.reply(from, reply) end)
+    %{state | deferred_replies: []}
   end
 
   defp notify_unsolicited(response, %State{on_unsolicited_response: cb}) when is_function(cb),

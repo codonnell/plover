@@ -12,7 +12,8 @@ defmodule Plover.Connection.State do
     capabilities: MapSet.new(),
     selected_mailbox: nil,
     mailbox_info: nil,
-    on_unsolicited_response: nil
+    on_unsolicited_response: nil,
+    deferred_replies: []
   ]
 
   @type t :: %__MODULE__{
@@ -26,7 +27,8 @@ defmodule Plover.Connection.State do
           capabilities: MapSet.t(),
           selected_mailbox: nil | String.t(),
           mailbox_info: nil | map(),
-          on_unsolicited_response: nil | (Plover.Types.untagged_response() -> any())
+          on_unsolicited_response: nil | (Plover.Types.untagged_response() -> any()),
+          deferred_replies: [{GenServer.from(), term()}]
         }
 
   def next_tag(%__MODULE__{tag_counter: n} = state) do
