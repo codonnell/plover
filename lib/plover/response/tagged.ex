@@ -10,7 +10,7 @@ defmodule Plover.Response.Tagged do
   @type t :: %__MODULE__{
           tag: String.t(),
           status: :ok | :no | :bad,
-          code: nil | {atom(), any()},
+          code: Plover.Types.response_code(),
           text: String.t()
         }
 end

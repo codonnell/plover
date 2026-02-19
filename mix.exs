@@ -51,7 +51,7 @@ defmodule Plover.MixProject do
 
   defp docs do
     [
-      extras: ["guides/email-content.md", "guides/testing.md"],
+      extras: ["guides/email-content.md", "guides/testing.md", "guides/unsolicited-responses.md"],
       groups_for_extras: [Guides: ~r/guides\/.*/]
     ]
   end

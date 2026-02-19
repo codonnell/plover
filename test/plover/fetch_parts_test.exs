@@ -2,7 +2,7 @@ defmodule Plover.FetchPartsTest do
   use ExUnit.Case, async: true
 
   alias Plover.Transport.Mock
-  alias Plover.Response.{BodyStructure, Mailbox, Message}
+  alias Plover.Response.{BodyStructure, Capability, Mailbox, Message}
 
   defp setup_selected do
     {:ok, socket} = Mock.connect("imap.example.com", 993, [])
@@ -10,7 +10,7 @@ defmodule Plover.FetchPartsTest do
     {:ok, conn} = Plover.connect("imap.example.com", 993, transport: Mock, socket: socket)
 
     Mock.enqueue_response(socket, :ok,
-      code: {:capability, ["IMAP4rev2"]},
+      code: %Capability{capabilities: ["IMAP4rev2"]},
       text: "LOGIN completed"
     )
 
@@ -154,6 +154,62 @@ defmodule Plover.FetchPartsTest do
       )
 
       assert {:error, _} = Plover.fetch_parts(conn, "100", [{"1", part}])
+    end
+
+    test "ignores unsolicited FETCH responses (e.g. FLAGS updates)" do
+      {conn, socket} = setup_selected()
+
+      text = "Hello"
+      raw = Base.encode64(text)
+
+      part = %BodyStructure{
+        type: "TEXT",
+        subtype: "PLAIN",
+        params: %{"CHARSET" => "UTF-8"},
+        encoding: "BASE64",
+        size: byte_size(raw)
+      }
+
+      # Server sends an unsolicited FLAGS update for another message
+      # alongside the actual body data we requested
+      Mock.enqueue_response(socket, :ok,
+        untagged: [
+          %Message.Fetch{seq: 50, attrs: %{flags: [:seen]}},
+          %Message.Fetch{seq: 1, attrs: %{body: %{"1" => raw}}}
+        ],
+        text: "FETCH completed"
+      )
+
+      assert {:ok, [{"1", decoded}]} = Plover.fetch_parts(conn, "100", [{"1", part}])
+      assert decoded == text
+    end
+
+    test "ignores multiple unsolicited FETCH responses" do
+      {conn, socket} = setup_selected()
+
+      text = "World"
+      raw = Base.encode64(text)
+
+      part = %BodyStructure{
+        type: "TEXT",
+        subtype: "PLAIN",
+        params: %{"CHARSET" => "UTF-8"},
+        encoding: "BASE64",
+        size: byte_size(raw)
+      }
+
+      # Multiple unsolicited responses mixed in
+      Mock.enqueue_response(socket, :ok,
+        untagged: [
+          %Message.Fetch{seq: 42, attrs: %{flags: [:seen, :flagged]}},
+          %Message.Fetch{seq: 99, attrs: %{flags: [:deleted]}},
+          %Message.Fetch{seq: 1, attrs: %{body: %{"1" => raw}}}
+        ],
+        text: "FETCH completed"
+      )
+
+      assert {:ok, [{"1", decoded}]} = Plover.fetch_parts(conn, "100", [{"1", part}])
+      assert decoded == text
     end
 
     test "empty parts list returns ok with empty list" do

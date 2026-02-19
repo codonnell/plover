@@ -37,6 +37,9 @@ defmodule Plover do
     * `:transport` - transport module (default: `Plover.Transport.SSL`)
     * `:socket` - pre-established socket (for testing with `Plover.Transport.Mock`)
     * `:ssl_opts` - additional SSL options
+    * `:on_unsolicited_response` - callback function invoked for untagged
+      server responses received outside of IDLE.
+      See the [Unsolicited Responses](unsolicited-responses.md) guide.
 
   ## Examples
 
@@ -61,6 +64,9 @@ defmodule Plover do
     * `:transport` - transport module (default: `Plover.Transport.SSL`)
     * `:socket` - pre-established socket (for testing with `Plover.Transport.Mock`)
     * `:ssl_opts` - additional SSL options
+    * `:on_unsolicited_response` - callback function invoked for untagged
+      server responses received outside of IDLE.
+      See the [Unsolicited Responses](unsolicited-responses.md) guide.
 
   ## Examples
 
@@ -73,6 +79,13 @@ defmodule Plover do
   @spec connect(String.t(), :inet.port_number(), keyword()) :: {:ok, pid()} | {:error, term()}
   def connect(host, port, opts) do
     transport = Keyword.get(opts, :transport, Plover.Transport.SSL)
+    on_unsolicited = Keyword.get(opts, :on_unsolicited_response)
+
+    conn_opts =
+      [transport: transport]
+      |> then(fn o ->
+        if on_unsolicited, do: Keyword.put(o, :on_unsolicited_response, on_unsolicited), else: o
+      end)
 
     case Keyword.get(opts, :socket) do
       nil ->
@@ -80,14 +93,14 @@ defmodule Plover do
 
         case transport.connect(host, port, ssl_opts) do
           {:ok, socket} ->
-            Connection.start_link(transport: transport, socket: socket)
+            Connection.start_link([{:socket, socket} | conn_opts])
 
           {:error, _} = error ->
             error
         end
 
       socket ->
-        Connection.start_link(transport: transport, socket: socket)
+        Connection.start_link([{:socket, socket} | conn_opts])
     end
   end
 
@@ -355,9 +368,21 @@ defmodule Plover do
 
   def fetch_parts(conn, uid, parts) do
     fetch_attrs = Enum.map(parts, fn {section, _} -> {:body_peek, section} end)
+    sections = MapSet.new(parts, fn {section, _} -> section end)
 
-    with {:ok, [msg]} <- uid_fetch(conn, uid, fetch_attrs) do
+    with {:ok, messages} <- uid_fetch(conn, uid, fetch_attrs),
+         {:ok, msg} <- find_body_response(messages, sections) do
       decode_all(parts, msg)
+    end
+  end
+
+  defp find_body_response(messages, sections) do
+    case Enum.find(messages, fn msg ->
+           body = Map.get(msg.attrs, :body, %{})
+           Enum.any?(sections, &Map.has_key?(body, &1))
+         end) do
+      nil -> {:error, :no_body_data}
+      msg -> {:ok, msg}
     end
   end
 

@@ -103,7 +103,7 @@ defmodule Plover.Transport.Mock do
     caps = Keyword.get(opts, :capabilities)
     text = Keyword.get(opts, :text, "Server ready")
 
-    code = if caps, do: {:capability, caps}, else: nil
+    code = if caps, do: %Plover.Response.Capability{capabilities: caps}, else: nil
     wire = ResponseEncoder.encode_untagged(:ok, code: code, text: text)
     enqueue(socket, wire)
   end
@@ -115,7 +115,7 @@ defmodule Plover.Transport.Mock do
   ## Options
 
     * `:untagged` - list of response structs to encode before the tagged response
-    * `:code` - response code tuple (e.g., `{:capability, ["IMAP4rev2"]}`)
+    * `:code` - response code (e.g., `%Capability{capabilities: ["IMAP4rev2"]}`)
     * `:text` - response text (default: `""`)
 
   ## Examples

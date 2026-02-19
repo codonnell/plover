@@ -12,6 +12,7 @@ defmodule Plover.Connection do
   alias Plover.Command
   alias Plover.Protocol.{Tokenizer, Parser, CommandBuilder}
   alias Plover.Response.{Tagged, Continuation, Mailbox, Message, ESearch}
+  alias Plover.Response.{Capability, Condition, Enabled, Unhandled}
 
   # --- Client API ---
 
@@ -192,10 +193,12 @@ defmodule Plover.Connection do
   def init(opts) do
     transport = Keyword.fetch!(opts, :transport)
     socket = Keyword.fetch!(opts, :socket)
+    on_unsolicited = Keyword.get(opts, :on_unsolicited_response)
 
     state = %State{
       transport: transport,
-      socket: socket
+      socket: socket,
+      on_unsolicited_response: on_unsolicited
     }
 
     # Transfer socket ownership to this GenServer
@@ -280,8 +283,10 @@ defmodule Plover.Connection do
     state = %{state | buffer: buffer}
     state = process_buffer(state)
 
-    # Only request more data if we have pending commands or are in idle
-    if map_size(state.pending) > 0 or state.idle_state != nil do
+    # Only request more data if we have pending commands, are in idle,
+    # or have a callback that needs server-initiated notifications
+    if map_size(state.pending) > 0 or state.idle_state != nil or
+         state.on_unsolicited_response != nil do
       :ok = state.transport.setopts(state.socket, active: :once)
     end
 
@@ -325,19 +330,20 @@ defmodule Plover.Connection do
   # --- Response dispatch ---
 
   # Greeting (untagged OK/PREAUTH/BYE when no pending commands)
-  defp dispatch_response({:ok, code, _text}, %State{} = state)
+  defp dispatch_response(%Condition{status: :ok, code: code}, %State{} = state)
        when map_size(state.pending) == 0 and state.idle_state == nil do
     state = maybe_store_capabilities(code, state)
     state
   end
 
-  defp dispatch_response({:preauth, code, _text}, %State{} = state)
+  defp dispatch_response(%Condition{status: :preauth, code: code}, %State{} = state)
        when map_size(state.pending) == 0 do
     state = maybe_store_capabilities(code, state)
     %{state | conn_state: :authenticated}
   end
 
-  defp dispatch_response({:bye, _text}, %State{} = state) when map_size(state.pending) == 0 do
+  defp dispatch_response(%Condition{status: :bye}, %State{} = state)
+       when map_size(state.pending) == 0 do
     %{state | conn_state: :logout}
   end
 
@@ -373,13 +379,15 @@ defmodule Plover.Connection do
   end
 
   # Untagged CAPABILITY
-  defp dispatch_response({:capability, caps}, %State{} = state) do
+  defp dispatch_response(%Capability{capabilities: caps} = cap_resp, %State{} = state) do
+    notify_unsolicited(cap_resp, state)
     state = %{state | capabilities: MapSet.new(caps)}
-    accumulate_untagged({:capability, caps}, state)
+    accumulate_untagged(cap_resp, state)
   end
 
   # Untagged FLAGS
   defp dispatch_response(%Mailbox.Flags{} = flags_resp, %State{} = state) do
+    notify_unsolicited(flags_resp, state)
     # Accumulate on pending command or update mailbox info
     state = accumulate_untagged(flags_resp, state)
     update_mailbox_info(state, :flags, flags_resp.flags)
@@ -395,22 +403,26 @@ defmodule Plover.Connection do
         state
 
       nil ->
+        notify_unsolicited(exists, state)
         update_mailbox_info(state, :exists, exists.count)
     end
   end
 
   # Untagged LIST
   defp dispatch_response(%Mailbox.List{} = list, %State{} = state) do
+    notify_unsolicited(list, state)
     accumulate_untagged(list, state)
   end
 
   # Untagged STATUS
   defp dispatch_response(%Mailbox.Status{} = status, %State{} = state) do
+    notify_unsolicited(status, state)
     accumulate_untagged(status, state)
   end
 
   # Untagged ESEARCH
   defp dispatch_response(%ESearch{} = esearch, %State{} = state) do
+    notify_unsolicited(esearch, state)
     accumulate_untagged(esearch, state)
   end
 
@@ -422,6 +434,7 @@ defmodule Plover.Connection do
         state
 
       nil ->
+        notify_unsolicited(fetch, state)
         accumulate_untagged(fetch, state)
     end
   end
@@ -434,13 +447,15 @@ defmodule Plover.Connection do
         state
 
       nil ->
+        notify_unsolicited(expunge, state)
         accumulate_untagged(expunge, state)
     end
   end
 
   # Untagged OK/NO/BAD with response codes
-  defp dispatch_response({status, code, _text}, %State{} = state)
+  defp dispatch_response(%Condition{status: status, code: code} = cond_resp, %State{} = state)
        when status in [:ok, :no, :bad] do
+    notify_unsolicited(cond_resp, state)
     state = maybe_store_capabilities(code, state)
 
     case code do
@@ -450,11 +465,21 @@ defmodule Plover.Connection do
     end
   end
 
-  defp dispatch_response({:bye, _text}, %State{} = state) do
-    accumulate_untagged({:bye, nil}, state)
+  defp dispatch_response(%Condition{status: :bye} = cond_resp, %State{} = state) do
+    notify_unsolicited(cond_resp, state)
+    accumulate_untagged(cond_resp, state)
   end
 
-  defp dispatch_response({:enabled, _caps}, %State{} = state), do: state
+  defp dispatch_response(%Enabled{} = enabled, %State{} = state) do
+    notify_unsolicited(enabled, state)
+    state
+  end
+
+  # Unrecognized untagged responses (extension-defined, etc.)
+  defp dispatch_response(%Unhandled{} = unhandled, %State{} = state) do
+    notify_unsolicited(unhandled, state)
+    accumulate_untagged(unhandled, state)
+  end
 
   defp dispatch_response(_response, %State{} = state), do: state
 
@@ -520,7 +545,7 @@ defmodule Plover.Connection do
       "CAPABILITY" ->
         caps =
           Enum.find_value(responses, [], fn
-            {:capability, c} -> c
+            %Capability{capabilities: c} -> c
             _ -> nil
           end)
 
@@ -564,7 +589,7 @@ defmodule Plover.Connection do
 
   # --- Helpers ---
 
-  defp maybe_store_capabilities({:capability, caps}, %State{} = state) do
+  defp maybe_store_capabilities(%Capability{capabilities: caps}, %State{} = state) do
     %{state | capabilities: MapSet.new(caps)}
   end
 
@@ -574,6 +599,11 @@ defmodule Plover.Connection do
     info = state.mailbox_info || %{}
     %{state | mailbox_info: Map.put(info, key, value)}
   end
+
+  defp notify_unsolicited(response, %State{on_unsolicited_response: cb}) when is_function(cb),
+    do: cb.(response)
+
+  defp notify_unsolicited(_response, _state), do: :ok
 
   defp maybe_send_literal(%State{} = state) do
     # Find pending command with literal data

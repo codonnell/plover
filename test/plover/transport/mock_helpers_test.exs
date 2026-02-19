@@ -2,6 +2,7 @@ defmodule Plover.Transport.MockHelpersTest do
   use ExUnit.Case, async: true
 
   alias Plover.Transport.Mock
+  alias Plover.Response.Capability
   alias Plover.Response.Mailbox
   alias Plover.Response.Message
 
@@ -92,7 +93,7 @@ defmodule Plover.Transport.MockHelpersTest do
       {:ok, socket} = Mock.connect("imap.example.com", 993, [])
 
       Mock.enqueue_response(socket, :ok,
-        code: {:capability, ["IMAP4rev2"]},
+        code: %Capability{capabilities: ["IMAP4rev2"]},
         text: "LOGIN completed"
       )
 
@@ -183,7 +184,7 @@ defmodule Plover.Transport.MockHelpersTest do
 
       # Login
       Mock.enqueue_response(socket, :ok,
-        code: {:capability, ["IMAP4rev2"]},
+        code: %Capability{capabilities: ["IMAP4rev2"]},
         text: "LOGIN completed"
       )
 

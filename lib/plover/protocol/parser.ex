@@ -10,10 +10,25 @@ defmodule Plover.Protocol.Parser do
 
   alias Plover.Content
   alias Plover.Response.{Tagged, Continuation, Envelope, Address, BodyStructure, ESearch}
+  alias Plover.Response.{Capability, Condition, Enabled, Unhandled}
   alias Plover.Response.Mailbox
   alias Plover.Response.Message
 
-  @type token :: term()
+  @type token ::
+          {:atom, String.t()}
+          | {:number, integer()}
+          | {:quoted_string, String.t()}
+          | {:literal, binary()}
+          | {:flag, String.t()}
+          | nil
+          | :lparen
+          | :rparen
+          | :lbracket
+          | :rbracket
+          | :star
+          | :plus
+          | :crlf
+
   @type tokens :: [token()]
 
   @doc """
@@ -104,7 +119,7 @@ defmodule Plover.Protocol.Parser do
 
   defp parse_untagged([{:atom, "CAPABILITY"} | rest]) do
     caps = collect_atoms(rest)
-    {:ok, {:capability, caps}}
+    {:ok, %Capability{capabilities: caps}}
   end
 
   defp parse_untagged([{:atom, "FLAGS"}, :lparen | rest]) do
@@ -125,37 +140,37 @@ defmodule Plover.Protocol.Parser do
   end
 
   defp parse_untagged([{:atom, "BYE"} | rest]) do
-    text = tokens_to_text(rest)
-    {:ok, {:bye, text}}
+    {code, text} = parse_resp_text(rest)
+    {:ok, %Condition{status: :bye, code: code, text: text}}
   end
 
   defp parse_untagged([{:atom, "OK"} | rest]) do
     {code, text} = parse_resp_text(rest)
-    {:ok, {:ok, code, text}}
+    {:ok, %Condition{status: :ok, code: code, text: text}}
   end
 
   defp parse_untagged([{:atom, "NO"} | rest]) do
     {code, text} = parse_resp_text(rest)
-    {:ok, {:no, code, text}}
+    {:ok, %Condition{status: :no, code: code, text: text}}
   end
 
   defp parse_untagged([{:atom, "BAD"} | rest]) do
     {code, text} = parse_resp_text(rest)
-    {:ok, {:bad, code, text}}
+    {:ok, %Condition{status: :bad, code: code, text: text}}
   end
 
   defp parse_untagged([{:atom, "PREAUTH"} | rest]) do
     {code, text} = parse_resp_text(rest)
-    {:ok, {:preauth, code, text}}
+    {:ok, %Condition{status: :preauth, code: code, text: text}}
   end
 
   defp parse_untagged([{:atom, "ENABLED"} | rest]) do
     caps = collect_atoms(rest)
-    {:ok, {:enabled, caps}}
+    {:ok, %Enabled{capabilities: caps}}
   end
 
   defp parse_untagged(tokens) do
-    {:error, {:unrecognized_untagged, tokens}}
+    {:ok, %Unhandled{tokens: tokens}}
   end
 
   # --- resp-text parsing ---
@@ -180,7 +195,7 @@ defmodule Plover.Protocol.Parser do
 
   defp parse_resp_text_code([{:atom, "CAPABILITY"} | rest]) do
     {caps, remaining} = collect_until_rbracket(rest)
-    {{:capability, caps}, remaining}
+    {%Capability{capabilities: caps}, remaining}
   end
 
   defp parse_resp_text_code([{:atom, "PARSE"}, :rbracket | rest]) do

@@ -8,7 +8,11 @@
       "Bash(mix help:*)",
       "Bash(mix usage_rules.search_docs:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(mix usage_rules.docs:*)"
+      "Bash(mix usage_rules.docs:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:imapclient.readthedocs.io)",
+      "Bash(git stash:*)"
     ]
   }
 }

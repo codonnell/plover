@@ -453,6 +453,192 @@ defmodule Plover.ConnectionTest do
     end
   end
 
+  describe "on_unsolicited_response callback" do
+    defp start_connection_with_callback(callback) do
+      {:ok, socket} = Mock.connect("imap.example.com", 993, [])
+      Mock.enqueue(socket, "* OK IMAP4rev2 server ready\r\n")
+
+      {:ok, conn} =
+        Connection.start_link(
+          transport: Mock,
+          socket: socket,
+          on_unsolicited_response: callback
+        )
+
+      {conn, socket}
+    end
+
+    defp select_mailbox(conn, socket, tag_offset) do
+      login_tag = "A#{String.pad_leading(Integer.to_string(tag_offset), 4, "0")}"
+      select_tag = "A#{String.pad_leading(Integer.to_string(tag_offset + 1), 4, "0")}"
+
+      Mock.enqueue(socket, "#{login_tag} OK LOGIN completed\r\n")
+      {:ok, _} = Connection.login(conn, "user", "pass")
+      Mock.enqueue(socket, "* 10 EXISTS\r\n#{select_tag} OK SELECT completed\r\n")
+      {:ok, _} = Connection.select(conn, "INBOX")
+    end
+
+    test "callback fires for EXISTS during a command" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {conn, socket} = start_connection_with_callback(callback)
+      select_mailbox(conn, socket, 1)
+
+      Mock.enqueue(socket, "* 11 EXISTS\r\nA0003 OK NOOP completed\r\n")
+      {:ok, _} = Connection.noop(conn)
+
+      assert_received {:unsolicited, %Plover.Response.Mailbox.Exists{count: 11}}
+    end
+
+    test "callback fires for EXPUNGE during a command" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {conn, socket} = start_connection_with_callback(callback)
+      select_mailbox(conn, socket, 1)
+
+      Mock.enqueue(socket, "* 3 EXPUNGE\r\nA0003 OK NOOP completed\r\n")
+      {:ok, _} = Connection.noop(conn)
+
+      assert_received {:unsolicited, %Plover.Response.Message.Expunge{seq: 3}}
+    end
+
+    test "callback fires for FETCH (FLAGS) during a command" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {conn, socket} = start_connection_with_callback(callback)
+      select_mailbox(conn, socket, 1)
+
+      Mock.enqueue(socket, "* 5 FETCH (FLAGS (\\Seen))\r\nA0003 OK NOOP completed\r\n")
+      {:ok, _} = Connection.noop(conn)
+
+      assert_received {:unsolicited, %Plover.Response.Message.Fetch{seq: 5}}
+    end
+
+    test "callback fires for FLAGS during a command" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {conn, socket} = start_connection_with_callback(callback)
+      select_mailbox(conn, socket, 1)
+
+      # Drain the EXISTS from SELECT
+      assert_receive {:unsolicited, %Plover.Response.Mailbox.Exists{count: 10}}, 1000
+
+      Mock.enqueue(
+        socket,
+        "* FLAGS (\\Seen \\Answered)\r\nA0003 OK NOOP completed\r\n"
+      )
+
+      {:ok, _} = Connection.noop(conn)
+
+      assert_received {:unsolicited, %Plover.Response.Mailbox.Flags{flags: flags}}
+      assert :seen in flags
+      assert :answered in flags
+    end
+
+    test "callback fires for LIST during a command" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {conn, socket} = start_connection_with_callback(callback)
+      Mock.enqueue(socket, "A0001 OK LOGIN completed\r\n")
+      {:ok, _} = Connection.login(conn, "user", "pass")
+
+      Mock.enqueue(
+        socket,
+        "* LIST (\\HasNoChildren) \"/\" \"NewFolder\"\r\nA0002 OK NOOP completed\r\n"
+      )
+
+      {:ok, _} = Connection.noop(conn)
+
+      assert_received {:unsolicited, %Plover.Response.Mailbox.List{name: "NewFolder"}}
+    end
+
+    test "no callback — existing behavior unchanged" do
+      {conn, socket} = start_connection()
+      Mock.enqueue(socket, "A0001 OK LOGIN completed\r\n")
+      {:ok, _} = Connection.login(conn, "user", "pass")
+      Mock.enqueue(socket, "* 10 EXISTS\r\nA0002 OK SELECT completed\r\n")
+      {:ok, _} = Connection.select(conn, "INBOX")
+
+      Mock.enqueue(socket, "* 11 EXISTS\r\nA0003 OK NOOP completed\r\n")
+      assert {:ok, _} = Connection.noop(conn)
+    end
+
+    test "callback works through Plover.connect" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {:ok, socket} = Mock.connect("imap.example.com", 993, [])
+      Mock.enqueue(socket, "* OK IMAP4rev2 server ready\r\n")
+
+      {:ok, conn} =
+        Plover.connect("imap.example.com", 993,
+          transport: Mock,
+          socket: socket,
+          on_unsolicited_response: callback
+        )
+
+      Mock.enqueue(socket, "A0001 OK LOGIN completed\r\n")
+      {:ok, _} = Plover.login(conn, "user", "pass")
+      Mock.enqueue(socket, "* 10 EXISTS\r\nA0002 OK SELECT completed\r\n")
+      {:ok, _} = Plover.select(conn, "INBOX")
+
+      # Drain the EXISTS from SELECT
+      assert_receive {:unsolicited, %Plover.Response.Mailbox.Exists{count: 10}}, 1000
+
+      Mock.enqueue(socket, "* 15 EXISTS\r\nA0003 OK NOOP completed\r\n")
+      {:ok, _} = Plover.noop(conn)
+
+      assert_received {:unsolicited, %Plover.Response.Mailbox.Exists{count: 15}}
+    end
+
+    test "callback fires for unrecognized untagged response" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {conn, socket} = start_connection_with_callback(callback)
+      Mock.enqueue(socket, "A0001 OK LOGIN completed\r\n")
+      {:ok, _} = Connection.login(conn, "user", "pass")
+
+      Mock.enqueue(socket, "* XEXTENSION some data\r\nA0002 OK NOOP completed\r\n")
+      {:ok, _} = Connection.noop(conn)
+
+      assert_received {:unsolicited, %Plover.Response.Unhandled{tokens: tokens}}
+      assert is_list(tokens)
+    end
+
+    test "not invoked during IDLE" do
+      parent = self()
+      callback = fn response -> send(parent, {:unsolicited, response}) end
+
+      {conn, socket} = start_connection_with_callback(callback)
+      select_mailbox(conn, socket, 1)
+
+      # Drain the EXISTS from SELECT
+      assert_receive {:unsolicited, %Plover.Response.Mailbox.Exists{count: 10}}, 1000
+
+      # Enter IDLE
+      Mock.enqueue(socket, "+ idling\r\n")
+      idle_callback = fn response -> send(parent, {:idle_update, response}) end
+      assert :ok = Connection.idle(conn, idle_callback)
+
+      # Server sends EXISTS during IDLE — idle callback fires, not unsolicited
+      Mock.enqueue(socket, "* 12 EXISTS\r\n")
+      Mock.setopts(socket, active: :once)
+
+      assert_receive {:idle_update, %Plover.Response.Mailbox.Exists{count: 12}}, 1000
+      refute_received {:unsolicited, _}
+
+      # Stop idle — tag matches the IDLE command (A0003)
+      Mock.enqueue(socket, "A0003 OK IDLE terminated\r\n")
+      assert {:ok, _} = Connection.idle_done(conn)
+    end
+  end
+
   describe "EXPUNGE command" do
     setup do
       {conn, socket} = start_connection()

@@ -11,7 +11,8 @@ defmodule Plover.Connection.State do
     idle_state: nil,
     capabilities: MapSet.new(),
     selected_mailbox: nil,
-    mailbox_info: nil
+    mailbox_info: nil,
+    on_unsolicited_response: nil
   ]
 
   @type t :: %__MODULE__{
@@ -24,7 +25,8 @@ defmodule Plover.Connection.State do
           idle_state: nil | map(),
           capabilities: MapSet.t(),
           selected_mailbox: nil | String.t(),
-          mailbox_info: nil | map()
+          mailbox_info: nil | map(),
+          on_unsolicited_response: nil | (Plover.Types.untagged_response() -> any())
         }
 
   def next_tag(%__MODULE__{tag_counter: n} = state) do

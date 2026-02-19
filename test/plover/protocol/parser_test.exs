@@ -3,6 +3,7 @@ defmodule Plover.Protocol.ParserTest do
 
   alias Plover.Protocol.Parser
   alias Plover.Response.{Tagged, Continuation, Envelope, Address, BodyStructure, ESearch}
+  alias Plover.Response.{Capability, Condition, Enabled, Unhandled}
   alias Plover.Response.Mailbox
   alias Plover.Response.Message
 
@@ -57,7 +58,7 @@ defmodule Plover.Protocol.ParserTest do
     end
 
     test "tagged OK with CAPABILITY code" do
-      assert {:ok, %Tagged{tag: "A001", status: :ok, code: {:capability, caps}}} =
+      assert {:ok, %Tagged{tag: "A001", status: :ok, code: %Capability{capabilities: caps}}} =
                parse("A001 OK [CAPABILITY IMAP4rev2 AUTH=PLAIN] Logged in\r\n")
 
       assert "IMAP4rev2" in caps
@@ -126,7 +127,7 @@ defmodule Plover.Protocol.ParserTest do
   # RFC 9051 Section 7.2.1 - CAPABILITY
   describe "untagged CAPABILITY" do
     test "parses capability list" do
-      assert {:ok, {:capability, caps}} =
+      assert {:ok, %Capability{capabilities: caps}} =
                parse("* CAPABILITY IMAP4rev2 AUTH=PLAIN AUTH=XOAUTH2 IDLE\r\n")
 
       assert "IMAP4rev2" in caps
@@ -245,7 +246,7 @@ defmodule Plover.Protocol.ParserTest do
   # RFC 9051 Section 7.1 - BYE
   describe "untagged BYE" do
     test "parses BYE response" do
-      assert {:ok, {:bye, "server shutting down"}} =
+      assert {:ok, %Condition{status: :bye, code: nil, text: "server shutting down"}} =
                parse("* BYE server shutting down\r\n")
     end
   end
@@ -253,17 +254,17 @@ defmodule Plover.Protocol.ParserTest do
   # RFC 9051 Section 7.1 - untagged OK
   describe "untagged OK" do
     test "parses OK with response code" do
-      assert {:ok, {:ok, {:uid_validity, 3_857_529_045}, "UIDs valid"}} =
+      assert {:ok, %Condition{status: :ok, code: {:uid_validity, 3_857_529_045}, text: "UIDs valid"}} =
                parse("* OK [UIDVALIDITY 3857529045] UIDs valid\r\n")
     end
 
     test "parses OK without response code" do
-      assert {:ok, {:ok, nil, "IMAP4rev2 server ready"}} =
+      assert {:ok, %Condition{status: :ok, code: nil, text: "IMAP4rev2 server ready"}} =
                parse("* OK IMAP4rev2 server ready\r\n")
     end
 
     test "parses PREAUTH" do
-      assert {:ok, {:preauth, nil, "IMAP4rev2 server ready"}} =
+      assert {:ok, %Condition{status: :preauth, code: nil, text: "IMAP4rev2 server ready"}} =
                parse("* PREAUTH IMAP4rev2 server ready\r\n")
     end
   end
@@ -415,22 +416,31 @@ defmodule Plover.Protocol.ParserTest do
 
   describe "untagged NO and BAD" do
     test "parses untagged NO" do
-      assert {:ok, {:no, nil, "Disk quota exceeded"}} =
+      assert {:ok, %Condition{status: :no, code: nil, text: "Disk quota exceeded"}} =
                parse("* NO Disk quota exceeded\r\n")
     end
 
     test "parses untagged BAD" do
-      assert {:ok, {:bad, nil, "Internal server error"}} =
+      assert {:ok, %Condition{status: :bad, code: nil, text: "Internal server error"}} =
                parse("* BAD Internal server error\r\n")
     end
   end
 
   describe "ENABLED response" do
     test "parses ENABLED" do
-      assert {:ok, {:enabled, caps}} =
+      assert {:ok, %Enabled{capabilities: caps}} =
                parse("* ENABLED IMAP4rev2\r\n")
 
       assert "IMAP4rev2" in caps
+    end
+  end
+
+  describe "unrecognized untagged response" do
+    test "returns Unhandled struct with tokens" do
+      assert {:ok, %Unhandled{tokens: tokens}} =
+               parse("* XEXTENSION some data\r\n")
+
+      assert is_list(tokens)
     end
   end
 end

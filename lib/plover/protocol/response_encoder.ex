@@ -11,6 +11,7 @@ defmodule Plover.Protocol.ResponseEncoder do
   """
 
   alias Plover.Response.{Tagged, Continuation, BodyStructure, Envelope, Address, ESearch}
+  alias Plover.Response.{Capability, Condition, Enabled}
   alias Plover.Response.Mailbox
   alias Plover.Response.Message
 
@@ -75,6 +76,20 @@ defmodule Plover.Protocol.ResponseEncoder do
     end
   end
 
+  def encode(%Capability{capabilities: caps}) do
+    "* CAPABILITY #{Enum.join(caps, " ")}\r\n"
+  end
+
+  def encode(%Condition{} = resp) do
+    status_str = status_to_wire(resp.status)
+    code_part = encode_resp_code(resp.code)
+    "* #{status_str}#{code_part} #{resp.text}\r\n"
+  end
+
+  def encode(%Enabled{capabilities: caps}) do
+    "* ENABLED #{Enum.join(caps, " ")}\r\n"
+  end
+
   @doc """
   Encode an untagged status response (OK/NO/BAD/BYE).
   """
@@ -118,7 +133,7 @@ defmodule Plover.Protocol.ResponseEncoder do
   defp encode_resp_code({:not_saved, nil}), do: " [NOTSAVED]"
   defp encode_resp_code({:unknown_cte, nil}), do: " [UNKNOWN-CTE]"
 
-  defp encode_resp_code({:capability, caps}) do
+  defp encode_resp_code(%Capability{capabilities: caps}) do
     " [CAPABILITY #{Enum.join(caps, " ")}]"
   end
 
@@ -144,6 +159,7 @@ defmodule Plover.Protocol.ResponseEncoder do
   defp status_to_wire(:no), do: "NO"
   defp status_to_wire(:bad), do: "BAD"
   defp status_to_wire(:bye), do: "BYE"
+  defp status_to_wire(:preauth), do: "PREAUTH"
 
   # --- Flag encoding (inverse of normalize_flag) ---
 

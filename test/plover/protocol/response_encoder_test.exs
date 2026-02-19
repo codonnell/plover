@@ -3,6 +3,7 @@ defmodule Plover.Protocol.ResponseEncoderTest do
 
   alias Plover.Protocol.{ResponseEncoder, Tokenizer, Parser}
   alias Plover.Response.{Tagged, Continuation, BodyStructure, Envelope, Address, ESearch}
+  alias Plover.Response.{Capability, Condition, Enabled}
   alias Plover.Response.Mailbox
   alias Plover.Response.Message
 
@@ -41,12 +42,12 @@ defmodule Plover.Protocol.ResponseEncoderTest do
       struct = %Tagged{
         tag: "A0001",
         status: :ok,
-        code: {:capability, ["IMAP4rev2", "IDLE"]},
+        code: %Capability{capabilities: ["IMAP4rev2", "IDLE"]},
         text: "LOGIN completed"
       }
 
       parsed = round_trip(struct)
-      assert %Tagged{status: :ok, code: {:capability, caps}, text: "LOGIN completed"} = parsed
+      assert %Tagged{status: :ok, code: %Capability{capabilities: caps}, text: "LOGIN completed"} = parsed
       assert "IMAP4rev2" in caps
       assert "IDLE" in caps
     end
@@ -565,6 +566,63 @@ defmodule Plover.Protocol.ResponseEncoderTest do
     end
   end
 
+  describe "Capability" do
+    test "encodes capability response" do
+      struct = %Capability{capabilities: ["IMAP4rev2", "IDLE"]}
+      parsed = round_trip(struct)
+      assert %Capability{capabilities: caps} = parsed
+      assert "IMAP4rev2" in caps
+      assert "IDLE" in caps
+    end
+  end
+
+  describe "Condition" do
+    test "encodes untagged OK" do
+      struct = %Condition{status: :ok, code: nil, text: "Server ready"}
+      parsed = round_trip(struct)
+      assert %Condition{status: :ok, code: nil, text: "Server ready"} = parsed
+    end
+
+    test "encodes untagged OK with response code" do
+      struct = %Condition{status: :ok, code: {:uid_validity, 3_857_529_045}, text: "UIDs valid"}
+      parsed = round_trip(struct)
+      assert %Condition{status: :ok, code: {:uid_validity, 3_857_529_045}, text: "UIDs valid"} = parsed
+    end
+
+    test "encodes untagged BYE" do
+      struct = %Condition{status: :bye, code: nil, text: "server logging out"}
+      parsed = round_trip(struct)
+      assert %Condition{status: :bye, code: nil, text: "server logging out"} = parsed
+    end
+
+    test "encodes untagged NO" do
+      struct = %Condition{status: :no, code: nil, text: "access denied"}
+      parsed = round_trip(struct)
+      assert %Condition{status: :no, code: nil, text: "access denied"} = parsed
+    end
+
+    test "encodes untagged BAD" do
+      struct = %Condition{status: :bad, code: nil, text: "invalid command"}
+      parsed = round_trip(struct)
+      assert %Condition{status: :bad, code: nil, text: "invalid command"} = parsed
+    end
+
+    test "encodes PREAUTH" do
+      struct = %Condition{status: :preauth, code: nil, text: "ready"}
+      parsed = round_trip(struct)
+      assert %Condition{status: :preauth, code: nil, text: "ready"} = parsed
+    end
+  end
+
+  describe "Enabled" do
+    test "encodes enabled response" do
+      struct = %Enabled{capabilities: ["IMAP4rev2"]}
+      parsed = round_trip(struct)
+      assert %Enabled{capabilities: caps} = parsed
+      assert "IMAP4rev2" in caps
+    end
+  end
+
   # --- Untagged OK/NO/BAD/BYE ---
 
   describe "encode_untagged/2" do
@@ -576,7 +634,7 @@ defmodule Plover.Protocol.ResponseEncoderTest do
     test "encodes untagged OK with capability" do
       wire =
         ResponseEncoder.encode_untagged(:ok,
-          code: {:capability, ["IMAP4rev2"]},
+          code: %Capability{capabilities: ["IMAP4rev2"]},
           text: "Server ready"
         )
 

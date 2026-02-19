@@ -44,4 +44,38 @@ defmodule Plover.Types do
 
   @typedoc "Whether the STORE command should suppress untagged FETCH responses."
   @type store_silent :: boolean()
+
+  @typedoc """
+  A response code from a server status response (RFC 9051 §7.1).
+
+  Data codes carry a typed value. No-data codes are `{name, nil}` tuples —
+  common names include `:alert`, `:parse`, `:read_only`, `:read_write`,
+  `:try_create`, `:closed`, `:authentication_failed`, `:expired`,
+  `:contact_admin`, `:no_perm`, `:in_use`, `:over_quota`, `:nonexistent`,
+  and others from RFC 9051 §7.1. Unrecognized codes from extensions are
+  `{atom(), nil | String.t()}`.
+  """
+  @type response_code ::
+          nil
+          | Plover.Response.Capability.t()
+          | {:permanent_flags, [flag()]}
+          | {:uid_next, pos_integer()}
+          | {:uid_validity, pos_integer()}
+          | {:append_uid, {pos_integer(), pos_integer()}}
+          | {:copy_uid, {pos_integer(), String.t(), String.t()}}
+          | {atom(), nil | String.t()}
+
+  @typedoc "An untagged server response passed to the `:on_unsolicited_response` callback."
+  @type untagged_response ::
+          Plover.Response.Capability.t()
+          | Plover.Response.Condition.t()
+          | Plover.Response.Enabled.t()
+          | Plover.Response.Mailbox.Exists.t()
+          | Plover.Response.Mailbox.Flags.t()
+          | Plover.Response.Mailbox.List.t()
+          | Plover.Response.Mailbox.Status.t()
+          | Plover.Response.Message.Expunge.t()
+          | Plover.Response.Message.Fetch.t()
+          | Plover.Response.ESearch.t()
+          | Plover.Response.Unhandled.t()
 end
