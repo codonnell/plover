@@ -587,7 +587,7 @@ defmodule Plover.Protocol.Parser do
     {message_id, rest} = parse_nstring(rest)
     rest = skip_rparen(rest)
 
-    {:ok, subject} = Content.decode_encoded_words(subject)
+    subject = Content.decode_encoded_words(subject)
 
     envelope = %Envelope{
       date: date,
@@ -622,7 +622,7 @@ defmodule Plover.Protocol.Parser do
     {mailbox, rest} = parse_nstring(rest)
     {host, rest} = parse_nstring(rest)
     rest = skip_rparen(rest)
-    {:ok, name} = Content.decode_encoded_words(name)
+    name = Content.decode_encoded_words(name)
     addr = %Address{name: name, adl: adl, mailbox: mailbox, host: host}
     parse_addresses(rest, [addr | acc])
   end

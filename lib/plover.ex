@@ -138,7 +138,7 @@ defmodule Plover do
   Returns `{:ok, response}` on success or `{:error, response}` if the
   server rejects the credentials.
   """
-  @spec login(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec login(pid(), String.t(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate login(conn, user, password), to: Connection
 
   @doc """
@@ -146,7 +146,7 @@ defmodule Plover do
 
   Encodes the credentials per RFC 4616 and sends an AUTHENTICATE PLAIN command.
   """
-  @spec authenticate(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec authenticate(pid(), String.t(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   def authenticate(conn, user, password) do
     Connection.authenticate(conn, "PLAIN", user, password)
   end
@@ -157,7 +157,7 @@ defmodule Plover do
   Encodes the username and OAuth2 access token, then sends an
   AUTHENTICATE XOAUTH2 command. Used with providers like Gmail.
   """
-  @spec authenticate_xoauth2(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec authenticate_xoauth2(pid(), String.t(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate authenticate_xoauth2(conn, user, token), to: Connection
 
   @doc """
@@ -167,7 +167,7 @@ defmodule Plover do
   include mailbox metadata (EXISTS count, FLAGS, UIDVALIDITY, etc.) which
   can be retrieved via `Plover.Connection.mailbox_info/1`.
   """
-  @spec select(pid(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec select(pid(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate select(conn, mailbox), to: Connection
 
   @doc """
@@ -175,15 +175,15 @@ defmodule Plover do
 
   Identical to `select/2` but the server will not allow flag modifications.
   """
-  @spec examine(pid(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec examine(pid(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate examine(conn, mailbox), to: Connection
 
   @doc "Creates a new mailbox on the server."
-  @spec create(pid(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec create(pid(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate create(conn, mailbox), to: Connection
 
   @doc "Deletes a mailbox from the server."
-  @spec delete(pid(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec delete(pid(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate delete(conn, mailbox), to: Connection
 
   @doc """
@@ -192,7 +192,7 @@ defmodule Plover do
   Permanently removes any messages with the `\\Deleted` flag and transitions
   the connection back to the `:authenticated` state.
   """
-  @spec close(pid()) :: {:ok, term()} | {:error, term()}
+  @spec close(pid()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate close(conn), to: Connection
 
   @doc """
@@ -201,11 +201,11 @@ defmodule Plover do
   Unlike `close/1`, does not remove `\\Deleted` messages. Transitions
   the connection back to the `:authenticated` state.
   """
-  @spec unselect(pid()) :: {:ok, term()} | {:error, term()}
+  @spec unselect(pid()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate unselect(conn), to: Connection
 
   @doc "Permanently removes all messages with the `\\Deleted` flag from the selected mailbox."
-  @spec expunge(pid()) :: {:ok, term()} | {:error, term()}
+  @spec expunge(pid()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate expunge(conn), to: Connection
 
   @doc """
@@ -216,7 +216,7 @@ defmodule Plover do
   mailboxes, `"INBOX/*"` for children of INBOX).
   """
   @spec list(pid(), String.t(), String.t()) ::
-          {:ok, [Plover.Response.Mailbox.List.t()]} | {:error, term()}
+          {:ok, [Plover.Response.Mailbox.List.t()]} | {:error, Tagged.t()}
   defdelegate list(conn, reference, pattern), to: Connection
 
   @doc """
@@ -234,7 +234,7 @@ defmodule Plover do
 
   """
   @spec status(pid(), String.t(), [Plover.Types.status_attr()]) ::
-          {:ok, Plover.Response.Mailbox.Status.t()} | {:error, term()}
+          {:ok, Plover.Response.Mailbox.Status.t()} | {:error, Tagged.t()}
   defdelegate status(conn, mailbox, attrs), to: Connection
 
   @doc """
@@ -262,7 +262,7 @@ defmodule Plover do
 
   """
   @spec fetch(pid(), String.t(), [Plover.Types.fetch_attr()]) ::
-          {:ok, [Plover.Response.Message.Fetch.t()]} | {:error, term()}
+          {:ok, [Plover.Response.Message.Fetch.t()]} | {:error, Tagged.t()}
   defdelegate fetch(conn, sequence, attrs), to: Connection
 
   @doc """
@@ -278,7 +278,7 @@ defmodule Plover do
       {:ok, results} = Plover.search(conn, "FROM \\"user@example.com\\" SINCE 1-Jan-2024")
 
   """
-  @spec search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, term()}
+  @spec search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, Tagged.t()}
   defdelegate search(conn, criteria), to: Connection
 
   @doc """
@@ -298,7 +298,7 @@ defmodule Plover do
 
   """
   @spec store(pid(), String.t(), Plover.Types.store_action(), [Plover.Types.flag()]) ::
-          {:ok, term()} | {:error, term()}
+          {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate store(conn, sequence, action, flags), to: Connection
 
   @doc """
@@ -332,7 +332,7 @@ defmodule Plover do
   defdelegate move(conn, sequence, mailbox), to: Connection
 
   @doc "Sends a NOOP command, which can trigger pending untagged responses."
-  @spec noop(pid()) :: {:ok, term()} | {:error, term()}
+  @spec noop(pid()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate noop(conn), to: Connection
 
   @doc """
@@ -341,11 +341,11 @@ defmodule Plover do
   The server is sent a LOGOUT command and the GenServer is stopped.
   The `conn` pid is no longer valid after this call.
   """
-  @spec logout(pid()) :: {:ok, term()} | {:error, term()}
+  @spec logout(pid()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate logout(conn), to: Connection
 
   @doc "Requests the server's capability list. Returns `{:ok, [String.t()]}`."
-  @spec capability(pid()) :: {:ok, [String.t()]} | {:error, term()}
+  @spec capability(pid()) :: {:ok, [String.t()]} | {:error, Tagged.t()}
   defdelegate capability(conn), to: Connection
 
   @doc """
@@ -360,7 +360,7 @@ defmodule Plover do
     * `:date` - internal date string (e.g., `"14-Jul-2024 02:44:25 -0700"`)
 
   """
-  @spec append(pid(), String.t(), binary(), keyword()) :: {:ok, term()} | {:error, term()}
+  @spec append(pid(), String.t(), binary(), keyword()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate append(conn, mailbox, message, opts \\ []), to: Connection
 
   @doc """
@@ -373,18 +373,18 @@ defmodule Plover do
   Returns `:ok` once the server acknowledges IDLE. Call `idle_done/1`
   to exit IDLE mode before issuing other commands.
   """
-  @spec idle(pid(), (term() -> any())) :: :ok | {:error, term()}
+  @spec idle(pid(), (Plover.Types.untagged_response() -> any())) :: :ok | {:error, term()}
   defdelegate idle(conn, callback), to: Connection
 
   @doc "Exits IDLE mode. Must be called before issuing other commands."
-  @spec idle_done(pid()) :: {:ok, term()} | {:error, term()}
+  @spec idle_done(pid()) :: {:ok, Tagged.t()} | {:error, Tagged.t() | :not_idle}
   defdelegate idle_done(conn), to: Connection
 
   # UID variants
 
   @doc "Fetches message data by UID. See `fetch/3` for attribute options."
   @spec uid_fetch(pid(), String.t(), [Plover.Types.fetch_attr()]) ::
-          {:ok, [Plover.Response.Message.Fetch.t()]} | {:error, term()}
+          {:ok, [Plover.Response.Message.Fetch.t()]} | {:error, Tagged.t()}
   defdelegate uid_fetch(conn, sequence, attrs), to: Connection
 
   @doc """
@@ -413,7 +413,7 @@ defmodule Plover do
 
   """
   @spec fetch_parts(pid(), String.t(), [{String.t(), BS.t()}]) ::
-          {:ok, [{String.t(), binary()}]} | {:error, term()}
+          {:ok, [{String.t(), binary()}]} | {:error, Tagged.t() | :no_body_data}
   def fetch_parts(_conn, _uid, []), do: {:ok, []}
 
   def fetch_parts(conn, uid, parts) do
@@ -462,12 +462,12 @@ defmodule Plover do
   end
 
   @doc "Searches for messages by UID. See `search/2` for criteria format."
-  @spec uid_search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, term()}
+  @spec uid_search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, Tagged.t()}
   defdelegate uid_search(conn, criteria), to: Connection
 
   @doc "Modifies flags on messages by UID. See `store/4` for action options."
   @spec uid_store(pid(), String.t(), Plover.Types.store_action(), [Plover.Types.flag()]) ::
-          {:ok, term()} | {:error, term()}
+          {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate uid_store(conn, sequence, action, flags), to: Connection
 
   @doc """
@@ -489,6 +489,6 @@ defmodule Plover do
   defdelegate uid_move(conn, sequence, mailbox), to: Connection
 
   @doc "Expunges specific messages by UID, rather than all `\\Deleted` messages."
-  @spec uid_expunge(pid(), String.t()) :: {:ok, term()} | {:error, term()}
+  @spec uid_expunge(pid(), String.t()) :: {:ok, Tagged.t()} | {:error, Tagged.t()}
   defdelegate uid_expunge(conn, sequence), to: Connection
 end

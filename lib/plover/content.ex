@@ -27,12 +27,12 @@ defmodule Plover.Content do
   encoded-words separated only by whitespace are concatenated per RFC 2047
   Section 6.2.
 
-  Returns `{:ok, decoded_string}`. Passes through `nil` and plain strings
+  Returns the decoded string. Passes through `nil` and plain strings
   that contain no encoded-words.
   """
-  @spec decode_encoded_words(String.t() | nil) :: {:ok, String.t() | nil}
-  def decode_encoded_words(nil), do: {:ok, nil}
-  def decode_encoded_words(""), do: {:ok, ""}
+  @spec decode_encoded_words(String.t() | nil) :: String.t() | nil
+  def decode_encoded_words(nil), do: nil
+  def decode_encoded_words(""), do: ""
 
   def decode_encoded_words(text) do
     # Collapse whitespace between adjacent encoded-words (RFC 2047 §6.2)
@@ -50,7 +50,7 @@ defmodule Plover.Content do
         end
       end)
 
-    {:ok, result}
+    result
   end
 
   defp decode_word(charset, encoding, text) do
@@ -68,10 +68,7 @@ defmodule Plover.Content do
           |> decode_qp(<<>>)
       end
 
-    case convert_charset(decoded, charset) do
-      {:ok, converted} -> converted
-      _ -> decoded
-    end
+    convert_charset(decoded, charset)
   end
 
   @doc """
@@ -99,7 +96,7 @@ defmodule Plover.Content do
   @spec decode(binary(), String.t(), String.t()) :: {:ok, binary()} | {:error, term()}
   def decode(data, encoding, charset) do
     with {:ok, decoded} <- decode(data, encoding) do
-      convert_charset(decoded, charset)
+      {:ok, convert_charset(decoded, charset)}
     end
   end
 
@@ -163,20 +160,20 @@ defmodule Plover.Content do
   Supported charsets: UTF-8, US-ASCII, ISO-8859-1 (Latin-1), Windows-1252.
   Unknown charsets return the data unchanged.
   """
-  @spec convert_charset(binary(), String.t()) :: {:ok, binary()} | {:error, term()}
+  @spec convert_charset(binary(), String.t()) :: binary()
   def convert_charset(data, charset) do
     case String.upcase(charset) do
       c when c in ["UTF-8", "UTF8", "US-ASCII", "ASCII"] ->
-        {:ok, data}
+        data
 
       c when c in ["ISO-8859-1", "LATIN-1", "LATIN1"] ->
-        {:ok, latin1_to_utf8(data)}
+        latin1_to_utf8(data)
 
       c when c in ["WINDOWS-1252", "CP1252"] ->
-        {:ok, windows1252_to_utf8(data)}
+        windows1252_to_utf8(data)
 
       _ ->
-        {:ok, data}
+        data
     end
   end
 
