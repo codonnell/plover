@@ -33,6 +33,17 @@ defmodule Plover do
   alias Plover.{BodyStructure, Connection, Content}
   alias Plover.Connection.Log
   alias Plover.Response.BodyStructure, as: BS
+  alias Plover.Response.Tagged
+
+  @typedoc """
+  Result of a COPY or MOVE command when the server returns a COPYUID response code.
+
+  Contains the UID validity of the destination mailbox, along with the source
+  and destination UID sets as strings. Returns `nil` when the server omits
+  COPYUID (e.g., UIDNOTSTICKY mailboxes or permission restrictions).
+  """
+  @type copy_result ::
+          %{uid_validity: pos_integer(), source_uids: String.t(), dest_uids: String.t()} | nil
 
   @default_port 993
 
@@ -290,12 +301,34 @@ defmodule Plover do
           {:ok, term()} | {:error, term()}
   defdelegate store(conn, sequence, action, flags), to: Connection
 
-  @doc "Copies messages identified by `sequence` to the given mailbox."
-  @spec copy(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
+  @doc """
+  Copies messages identified by `sequence` to the given mailbox.
+
+  On success, returns `{:ok, copy_result}` where `copy_result` is a map
+  containing the COPYUID response code data, or `nil` if the server omits it.
+
+  ## Examples
+
+      {:ok, %{uid_validity: 38505, source_uids: "304,319:320", dest_uids: "3956:3958"}} =
+        Plover.copy(conn, "2:4", "meeting")
+
+  """
+  @spec copy(pid(), String.t(), String.t()) :: {:ok, copy_result()} | {:error, Tagged.t()}
   defdelegate copy(conn, sequence, mailbox), to: Connection
 
-  @doc "Moves messages identified by `sequence` to the given mailbox."
-  @spec move(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
+  @doc """
+  Moves messages identified by `sequence` to the given mailbox.
+
+  On success, returns `{:ok, copy_result}` where `copy_result` is a map
+  containing the COPYUID response code data, or `nil` if the server omits it.
+
+  ## Examples
+
+      {:ok, %{uid_validity: 38505, source_uids: "100:102", dest_uids: "3956:3958"}} =
+        Plover.move(conn, "1:3", "Archive")
+
+  """
+  @spec move(pid(), String.t(), String.t()) :: {:ok, copy_result()} | {:error, Tagged.t()}
   defdelegate move(conn, sequence, mailbox), to: Connection
 
   @doc "Sends a NOOP command, which can trigger pending untagged responses."
@@ -437,12 +470,22 @@ defmodule Plover do
           {:ok, term()} | {:error, term()}
   defdelegate uid_store(conn, sequence, action, flags), to: Connection
 
-  @doc "Copies messages to another mailbox by UID."
-  @spec uid_copy(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
+  @doc """
+  Copies messages to another mailbox by UID.
+
+  On success, returns `{:ok, copy_result}` where `copy_result` is a map
+  containing the COPYUID response code data, or `nil` if the server omits it.
+  """
+  @spec uid_copy(pid(), String.t(), String.t()) :: {:ok, copy_result()} | {:error, Tagged.t()}
   defdelegate uid_copy(conn, sequence, mailbox), to: Connection
 
-  @doc "Moves messages to another mailbox by UID."
-  @spec uid_move(pid(), String.t(), String.t()) :: {:ok, term()} | {:error, term()}
+  @doc """
+  Moves messages to another mailbox by UID.
+
+  On success, returns `{:ok, copy_result}` where `copy_result` is a map
+  containing the COPYUID response code data, or `nil` if the server omits it.
+  """
+  @spec uid_move(pid(), String.t(), String.t()) :: {:ok, copy_result()} | {:error, Tagged.t()}
   defdelegate uid_move(conn, sequence, mailbox), to: Connection
 
   @doc "Expunges specific messages by UID, rather than all `\\Deleted` messages."

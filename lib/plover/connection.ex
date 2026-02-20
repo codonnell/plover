@@ -499,6 +499,7 @@ defmodule Plover.Connection do
     case code do
       {:uid_validity, _} -> update_mailbox_info(state, :uid_validity, elem(code, 1))
       {:uid_next, _} -> update_mailbox_info(state, :uid_next, elem(code, 1))
+      {:copy_uid, _} -> accumulate_untagged(cond_resp, state)
       _ -> state
     end
   end
@@ -614,6 +615,25 @@ defmodule Plover.Connection do
           end)
 
         {:ok, status}
+
+      cmd when cmd in ["COPY", "UID COPY", "MOVE", "UID MOVE"] ->
+        copy_uid =
+          case resp.code do
+            {:copy_uid, {uid_validity, source_uids, dest_uids}} ->
+              %{uid_validity: uid_validity, source_uids: source_uids, dest_uids: dest_uids}
+
+            _ ->
+              # For MOVE/UID MOVE, COPYUID arrives in an untagged OK before EXPUNGEs
+              Enum.find_value(responses, fn
+                %Condition{code: {:copy_uid, {uid_validity, source_uids, dest_uids}}} ->
+                  %{uid_validity: uid_validity, source_uids: source_uids, dest_uids: dest_uids}
+
+                _ ->
+                  nil
+              end)
+          end
+
+        {:ok, copy_uid}
 
       _ ->
         {:ok, resp}
