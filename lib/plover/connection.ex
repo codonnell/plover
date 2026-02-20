@@ -8,7 +8,7 @@ defmodule Plover.Connection do
 
   use GenServer
 
-  alias Plover.Connection.State
+  alias Plover.Connection.{Log, State}
   alias Plover.Command
   alias Plover.Protocol.{Tokenizer, Parser, CommandBuilder}
   alias Plover.Response.{Tagged, Continuation, Mailbox, Message, ESearch}
@@ -212,9 +212,11 @@ defmodule Plover.Connection do
 
     receive do
       {^transport_tag, _socket, data} ->
+        Log.data_received(data)
         buffer = IO.iodata_to_binary(data)
         state = %{state | buffer: buffer}
         state = process_buffer(state)
+        Log.greeting_received(state.conn_state)
 
         # Re-arm active mode for unsolicited response listening
         if state.on_unsolicited_response != nil do
@@ -224,6 +226,7 @@ defmodule Plover.Connection do
         {:ok, state}
     after
       5_000 ->
+        Log.greeting_timeout()
         {:stop, :greeting_timeout}
     end
   end
@@ -243,6 +246,7 @@ defmodule Plover.Connection do
 
   def handle_call({:command, name, args}, from, %State{} = state) do
     {tag, state} = State.next_tag(state)
+    Log.command_sent(tag, name, args)
     cmd = %Command{tag: tag, name: name, args: args}
     iodata = CommandBuilder.build(cmd)
 
@@ -273,6 +277,7 @@ defmodule Plover.Connection do
 
   def handle_call({:idle, callback}, from, %State{} = state) do
     {tag, state} = State.next_tag(state)
+    Log.idle_started(tag)
     cmd = %Command{tag: tag, name: "IDLE", args: []}
     :ok = state.transport.send(state.socket, CommandBuilder.build(cmd))
 
@@ -284,6 +289,7 @@ defmodule Plover.Connection do
   def handle_call(:idle_done, from, %State{} = state) do
     case state.idle_state do
       %{tag: tag} ->
+        Log.idle_done_sent()
         :ok = state.transport.send(state.socket, CommandBuilder.build_done())
         pending = Map.put(state.pending, tag, %{from: from, command: "IDLE", responses: []})
         state = %{state | idle_state: nil, pending: pending}
@@ -298,6 +304,7 @@ defmodule Plover.Connection do
   @impl true
   def handle_info({transport_tag, _socket, data}, %State{} = state)
       when transport_tag in [:ssl, :mock_ssl] do
+    Log.data_received(data)
     buffer = state.buffer <> IO.iodata_to_binary(data)
     state = %{state | buffer: buffer}
     state = process_buffer(state)
@@ -317,10 +324,12 @@ defmodule Plover.Connection do
   end
 
   def handle_info({:ssl_closed, _socket}, %State{} = state) do
+    Log.disconnected(:closed)
     {:stop, :normal, state}
   end
 
   def handle_info({:ssl_error, _socket, reason}, %State{} = state) do
+    Log.ssl_error(reason)
     {:stop, {:ssl_error, reason}, state}
   end
 
@@ -345,7 +354,8 @@ defmodule Plover.Connection do
       {:ok, response} ->
         dispatch_response(response, state)
 
-      {:error, _reason} ->
+      {:error, reason} ->
+        Log.parse_error(reason)
         state
     end
   end
@@ -377,8 +387,15 @@ defmodule Plover.Connection do
         state
 
       {%{from: from, command: command, responses: responses}, pending} ->
+        prev_state = state.conn_state
         state = %{state | pending: pending}
         state = apply_state_transition(command, resp, state)
+        Log.command_completed(tag, command, resp.status)
+
+        if state.conn_state != prev_state do
+          Log.state_transition(command, prev_state, state.conn_state)
+        end
+
         reply = build_reply(command, resp, responses)
         %{state | deferred_replies: [{from, reply} | state.deferred_replies]}
     end
@@ -638,6 +655,7 @@ defmodule Plover.Connection do
     case Enum.find(state.pending, fn {_tag, entry} -> Map.has_key?(entry, :literal) end) do
       {tag, %{literal: data} = entry} ->
         :ok = state.transport.send(state.socket, [data, "\r\n"])
+        Log.literal_sent(tag, byte_size(data))
         entry = Map.delete(entry, :literal)
         %{state | pending: Map.put(state.pending, tag, entry)}
 

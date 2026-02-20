@@ -18,9 +18,20 @@ defmodule Plover do
   Each connection is a GenServer (`Plover.Connection`) managing a socket,
   command dispatch, and IMAP state machine. The default transport is SSL
   (implicit TLS on port 993).
+
+  ## Configuration
+
+      # config/config.exs
+      config :plover,
+        log_truncate_limit: 512   # max bytes for debug log messages (default: 512)
+
+  Set `:log_truncate_limit` to `:infinity` to disable truncation entirely.
   """
 
+  require Logger
+
   alias Plover.{BodyStructure, Connection, Content}
+  alias Plover.Connection.Log
   alias Plover.Response.BodyStructure, as: BS
 
   @default_port 993
@@ -93,9 +104,15 @@ defmodule Plover do
 
         case transport.connect(host, port, ssl_opts) do
           {:ok, socket} ->
+            Log.connected(host, port)
             Connection.start_link([{:socket, socket} | conn_opts])
 
           {:error, _} = error ->
+            Logger.warning(fn ->
+              {"Connection failed to #{host}:#{port}: #{inspect(elem(error, 1))}",
+               imap_event: :connect_failed}
+            end)
+
             error
         end
 
