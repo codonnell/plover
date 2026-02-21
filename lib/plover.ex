@@ -474,6 +474,7 @@ defmodule Plover do
   ## Options
 
     * `:max_concurrency` - maximum number of concurrent fetch operations (default: 30)
+    * `:timeout` - per-UID timeout in milliseconds (default: 60,000)
 
   ## Examples
 
@@ -493,6 +494,7 @@ defmodule Plover do
 
   def fetch_parts_batch(conn, parts_by_uid, opts) do
     max_concurrency = Keyword.get(opts, :max_concurrency, 30)
+    timeout = Keyword.get(opts, :timeout, 60_000)
 
     parts_by_uid
     |> Task.async_stream(
@@ -503,6 +505,7 @@ defmodule Plover do
         end
       end,
       max_concurrency: max_concurrency,
+      timeout: timeout,
       ordered: false
     )
     |> Enum.reduce_while({:ok, %{}}, fn
