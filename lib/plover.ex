@@ -468,8 +468,13 @@ defmodule Plover do
   issues pipelined `UID FETCH` commands concurrently, bounded by
   `:max_concurrency` (default: 30).
 
-  Returns `{:ok, %{uid => [{section, decoded_binary}]}}` on success,
-  or `{:error, term}` if any individual fetch fails.
+  Returns `{:ok, results}` where each UID maps to either
+  `{:ok, [{section, decoded_binary}]}` or `{:error, reason}`.
+  Content-level errors (missing body data, malformed encoding) are
+  reported per-UID so the caller can handle them individually.
+
+  Returns a top-level `{:error, reason}` only for batch-level failures
+  such as a timeout or connection death.
 
   ## Options
 
@@ -483,11 +488,13 @@ defmodule Plover do
         {"200", [{"1.1", plain_part}, {"1.2", html_part}]}
       ]
       {:ok, results} = Plover.fetch_parts_batch(conn, parts_by_uid)
-      # => %{"100" => [{"1", "..."}], "200" => [{"1.1", "..."}, {"1.2", "..."}]}
+      # => %{"100" => {:ok, [{"1", "..."}]},
+      #      "200" => {:ok, [{"1.1", "..."}, {"1.2", "..."}]}}
 
   """
   @spec fetch_parts_batch(pid(), [{String.t(), [{String.t(), BS.t()}]}], keyword()) ::
-          {:ok, %{String.t() => [{String.t(), binary()}]}} | {:error, Tagged.t() | :no_body_data}
+          {:ok, %{String.t() => {:ok, [{String.t(), binary()}]} | {:error, term()}}}
+          | {:error, term()}
   def fetch_parts_batch(conn, parts_by_uid, opts \\ [])
 
   def fetch_parts_batch(_conn, [], _opts), do: {:ok, %{}}
@@ -496,28 +503,66 @@ defmodule Plover do
     max_concurrency = Keyword.get(opts, :max_concurrency, 30)
     timeout = Keyword.get(opts, :timeout, 60_000)
 
-    parts_by_uid
-    |> Task.async_stream(
-      fn {uid, parts} ->
-        case fetch_parts(conn, uid, parts) do
-          {:ok, decoded} -> {:ok, uid, decoded}
-          {:error, _} = error -> error
-        end
-      end,
-      max_concurrency: max_concurrency,
-      timeout: timeout,
-      ordered: false
-    )
-    |> Enum.reduce_while({:ok, %{}}, fn
-      {:ok, {:ok, uid, decoded}}, {:ok, acc} ->
-        {:cont, {:ok, Map.put(acc, uid, decoded)}}
+    # Include UID in fetch attrs so we can pool responses by UID rather than
+    # by command tag — necessary because some servers (Dovecot) batch untagged
+    # FETCH responses across pipelined commands.
+    fetch_results =
+      parts_by_uid
+      |> Task.async_stream(
+        fn {uid, parts} ->
+          attrs = [:uid | Enum.map(parts, fn {section, _} -> {:body_peek, section} end)]
 
-      {:ok, {:error, _} = error}, _acc ->
-        {:halt, error}
+          case uid_fetch(conn, uid, attrs) do
+            {:ok, messages} -> {uid, {:ok, messages}}
+            {:error, _} = error -> {uid, error}
+          end
+        end,
+        max_concurrency: max_concurrency,
+        timeout: timeout,
+        on_timeout: :kill_task
+      )
+      |> Enum.reduce_while({%{}, %{}}, fn
+        {:ok, {_uid, {:ok, messages}}}, {pool, errors} ->
+          new_pool =
+            Enum.reduce(messages, pool, fn msg, acc ->
+              case Map.get(msg.attrs, :uid) do
+                nil -> acc
+                msg_uid -> Map.put(acc, msg_uid, msg)
+              end
+            end)
 
-      {:exit, reason}, _acc ->
-        {:halt, {:error, reason}}
-    end)
+          {:cont, {new_pool, errors}}
+
+        {:ok, {uid, {:error, _} = error}}, {pool, errors} ->
+          {:cont, {pool, Map.put(errors, uid, error)}}
+
+        {:exit, _reason}, _acc ->
+          {:halt, {:error, :connection_lost}}
+      end)
+
+    case fetch_results do
+      {:error, _} = error ->
+        error
+
+      {pool, errors} ->
+        results =
+          Map.new(parts_by_uid, fn {uid, parts} ->
+            uid_int = String.to_integer(uid)
+
+            cond do
+              Map.has_key?(errors, uid) ->
+                {uid, errors[uid]}
+
+              Map.has_key?(pool, uid_int) ->
+                {uid, decode_all(parts, pool[uid_int])}
+
+              true ->
+                {uid, {:error, :no_body_data}}
+            end
+          end)
+
+        {:ok, results}
+    end
   end
 
   @doc "Searches for messages by UID. See `search/2` for criteria format."

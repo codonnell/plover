@@ -54,21 +54,21 @@ defmodule Plover.FetchPartsBatchConcurrencyTest do
       # Enqueue a response for each UID FETCH command
       Mock.enqueue_response(socket, :ok,
         untagged: [
-          %Message.Fetch{seq: 1, attrs: %{body: %{"" => "body one"}}}
+          %Message.Fetch{seq: 1, attrs: %{uid: 101, body: %{"" => "body one"}}}
         ],
         text: "FETCH completed"
       )
 
       Mock.enqueue_response(socket, :ok,
         untagged: [
-          %Message.Fetch{seq: 2, attrs: %{body: %{"" => "body two"}}}
+          %Message.Fetch{seq: 2, attrs: %{uid: 102, body: %{"" => "body two"}}}
         ],
         text: "FETCH completed"
       )
 
       Mock.enqueue_response(socket, :ok,
         untagged: [
-          %Message.Fetch{seq: 3, attrs: %{body: %{"" => "body three"}}}
+          %Message.Fetch{seq: 3, attrs: %{uid: 103, body: %{"" => "body three"}}}
         ],
         text: "FETCH completed"
       )
@@ -80,9 +80,9 @@ defmodule Plover.FetchPartsBatchConcurrencyTest do
                Plover.fetch_parts_batch(conn, parts_by_uid, max_concurrency: 2)
 
       assert map_size(results) == 3
-      assert results["101"] == [{"", "body one"}]
-      assert results["102"] == [{"", "body two"}]
-      assert results["103"] == [{"", "body three"}]
+      assert results["101"] == {:ok, [{"", "body one"}]}
+      assert results["102"] == {:ok, [{"", "body two"}]}
+      assert results["103"] == {:ok, [{"", "body three"}]}
     end
   end
 end

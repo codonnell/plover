@@ -49,9 +49,10 @@ defmodule Plover.BodyStructure do
     end)
   end
 
-  defp flatten_parts(%BodyStructure{} = bs, section) do
-    [{section, bs}]
-  end
+  # Top-level non-multipart: section "1" per RFC 9051 (not "" which
+  # refers to the entire message including headers).
+  defp flatten_parts(%BodyStructure{} = bs, ""), do: [{"1", bs}]
+  defp flatten_parts(%BodyStructure{} = bs, section), do: [{section, bs}]
 
   defp join_section("", child), do: child
   defp join_section(parent, child), do: parent <> "." <> child

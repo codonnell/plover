@@ -83,9 +83,9 @@ defmodule Plover.BodyStructureTest do
   # --- flatten/1 ---
 
   describe "flatten/1" do
-    test "single-part message returns section empty string" do
+    test "single-part message returns section 1" do
       assert [{section, part}] = BS.flatten(simple_message())
-      assert section == ""
+      assert section == "1"
       assert part.type == "TEXT"
       assert part.subtype == "PLAIN"
     end
@@ -173,7 +173,7 @@ defmodule Plover.BodyStructureTest do
     test "matches on single-part message" do
       results = BS.find_parts(simple_message(), "text/plain")
       assert length(results) == 1
-      [{"", part}] = results
+      [{"1", part}] = results
       assert part.type == "TEXT"
     end
 

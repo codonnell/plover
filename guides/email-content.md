@@ -291,8 +291,8 @@ parts_by_uid =
 # 3. Fetch and decode all parts in parallel (default: 30 concurrent)
 {:ok, results} = Plover.fetch_parts_batch(conn, parts_by_uid)
 
-# results is a map: %{"uid" => [{"section", "decoded text"}, ...]}
-for {uid, [{_section, text} | _]} <- results do
+# results maps each UID to {:ok, parts} or {:error, reason}
+for {uid, {:ok, [{_section, text} | _]}} <- results do
   IO.puts("UID #{uid}: #{String.slice(text, 0, 80)}...")
 end
 ```
@@ -305,8 +305,10 @@ connection-level rate limits:
 Plover.fetch_parts_batch(conn, parts_by_uid, max_concurrency: 5)
 ```
 
-If any individual fetch fails, the entire batch returns `{:error, reason}`
-immediately.
+Per-UID errors (missing body data, malformed encoding) are reported
+individually so the caller can decide how to handle them. The batch
+only returns a top-level `{:error, reason}` for connection-level
+failures like timeouts.
 
 ## Further reading
 

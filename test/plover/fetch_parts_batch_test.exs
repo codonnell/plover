@@ -51,12 +51,12 @@ defmodule Plover.FetchPartsBatchTest do
 
       # Enqueue responses for both UID FETCH commands
       Mock.enqueue_response(socket, :ok,
-        untagged: [%Message.Fetch{seq: 1, attrs: %{body: %{"1" => raw1}}}],
+        untagged: [%Message.Fetch{seq: 1, attrs: %{uid: 100, body: %{"1" => raw1}}}],
         text: "FETCH completed"
       )
 
       Mock.enqueue_response(socket, :ok,
-        untagged: [%Message.Fetch{seq: 2, attrs: %{body: %{"1" => raw2}}}],
+        untagged: [%Message.Fetch{seq: 2, attrs: %{uid: 200, body: %{"1" => raw2}}}],
         text: "FETCH completed"
       )
 
@@ -67,8 +67,8 @@ defmodule Plover.FetchPartsBatchTest do
 
       assert {:ok, result} = Plover.fetch_parts_batch(conn, parts_by_uid)
       assert map_size(result) == 2
-      assert result["100"] == [{"1", text1}]
-      assert result["200"] == [{"1", text2}]
+      assert result["100"] == {:ok, [{"1", text1}]}
+      assert result["200"] == {:ok, [{"1", text2}]}
     end
 
     test "empty input returns ok with empty map" do
@@ -84,17 +84,17 @@ defmodule Plover.FetchPartsBatchTest do
       raw = Base.encode64(text)
 
       Mock.enqueue_response(socket, :ok,
-        untagged: [%Message.Fetch{seq: 1, attrs: %{body: %{"1" => raw}}}],
+        untagged: [%Message.Fetch{seq: 1, attrs: %{uid: 42, body: %{"1" => raw}}}],
         text: "FETCH completed"
       )
 
       parts_by_uid = [{"42", [{"1", text_part()}]}]
 
       assert {:ok, result} = Plover.fetch_parts_batch(conn, parts_by_uid)
-      assert result["42"] == [{"1", text}]
+      assert result["42"] == {:ok, [{"1", text}]}
     end
 
-    test "error propagation: if one UID fails, entire batch returns error" do
+    test "server error is reported per-UID, not as batch failure" do
       {conn, socket} = setup_selected()
 
       text = "Good content"
@@ -102,7 +102,7 @@ defmodule Plover.FetchPartsBatchTest do
 
       # First UID succeeds
       Mock.enqueue_response(socket, :ok,
-        untagged: [%Message.Fetch{seq: 1, attrs: %{body: %{"1" => raw}}}],
+        untagged: [%Message.Fetch{seq: 1, attrs: %{uid: 100, body: %{"1" => raw}}}],
         text: "FETCH completed"
       )
 
@@ -114,7 +114,9 @@ defmodule Plover.FetchPartsBatchTest do
         {"200", [{"1", text_part()}]}
       ]
 
-      assert {:error, _} = Plover.fetch_parts_batch(conn, parts_by_uid)
+      assert {:ok, result} = Plover.fetch_parts_batch(conn, parts_by_uid)
+      assert {:ok, [{"1", ^text}]} = result["100"]
+      assert {:error, %Plover.Response.Tagged{status: :no}} = result["200"]
     end
 
     test "accepts max_concurrency option" do
@@ -124,14 +126,14 @@ defmodule Plover.FetchPartsBatchTest do
       raw = Base.encode64(text)
 
       Mock.enqueue_response(socket, :ok,
-        untagged: [%Message.Fetch{seq: 1, attrs: %{body: %{"1" => raw}}}],
+        untagged: [%Message.Fetch{seq: 1, attrs: %{uid: 100, body: %{"1" => raw}}}],
         text: "FETCH completed"
       )
 
       parts_by_uid = [{"100", [{"1", text_part()}]}]
 
       assert {:ok, result} = Plover.fetch_parts_batch(conn, parts_by_uid, max_concurrency: 1)
-      assert result["100"] == [{"1", text}]
+      assert result["100"] == {:ok, [{"1", text}]}
     end
 
     test "multiple parts per UID" do
@@ -154,7 +156,7 @@ defmodule Plover.FetchPartsBatchTest do
         untagged: [
           %Message.Fetch{
             seq: 1,
-            attrs: %{body: %{"1.1" => raw_plain, "1.2" => raw_html}}
+            attrs: %{uid: 100, body: %{"1.1" => raw_plain, "1.2" => raw_html}}
           }
         ],
         text: "FETCH completed"
@@ -163,7 +165,7 @@ defmodule Plover.FetchPartsBatchTest do
       parts_by_uid = [{"100", [{"1.1", text_part()}, {"1.2", html_part}]}]
 
       assert {:ok, result} = Plover.fetch_parts_batch(conn, parts_by_uid)
-      assert [{"1.1", ^text_plain}, {"1.2", ^text_html}] = result["100"]
+      assert {:ok, [{"1.1", ^text_plain}, {"1.2", ^text_html}]} = result["100"]
     end
   end
 end
