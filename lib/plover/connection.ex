@@ -250,6 +250,12 @@ defmodule Plover.Connection do
     cmd = %Command{tag: tag, name: name, args: args}
     iodata = CommandBuilder.build(cmd)
 
+    # Only arm active:once when this is the first pending command.
+    # If other commands are already pending, handle_info will re-arm
+    # active:once after processing their responses — arming here too
+    # would pull the next response prematurely from the transport.
+    needs_active = map_size(state.pending) == 0
+
     case iodata do
       {:literal, first_part, literal_data} ->
         :ok = state.transport.send(state.socket, first_part)
@@ -263,14 +269,14 @@ defmodule Plover.Connection do
           })
 
         state = %{state | pending: pending, pending_order: state.pending_order ++ [tag]}
-        :ok = state.transport.setopts(state.socket, active: :once)
+        if needs_active, do: :ok = state.transport.setopts(state.socket, active: :once)
         {:noreply, state}
 
       _ ->
         :ok = state.transport.send(state.socket, iodata)
         pending = Map.put(state.pending, tag, %{from: from, command: name, responses: []})
         state = %{state | pending: pending, pending_order: state.pending_order ++ [tag]}
-        :ok = state.transport.setopts(state.socket, active: :once)
+        if needs_active, do: :ok = state.transport.setopts(state.socket, active: :once)
         {:noreply, state}
     end
   end
