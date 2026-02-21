@@ -262,14 +262,14 @@ defmodule Plover.Connection do
             literal: literal_data
           })
 
-        state = %{state | pending: pending}
+        state = %{state | pending: pending, pending_order: state.pending_order ++ [tag]}
         :ok = state.transport.setopts(state.socket, active: :once)
         {:noreply, state}
 
       _ ->
         :ok = state.transport.send(state.socket, iodata)
         pending = Map.put(state.pending, tag, %{from: from, command: name, responses: []})
-        state = %{state | pending: pending}
+        state = %{state | pending: pending, pending_order: state.pending_order ++ [tag]}
         :ok = state.transport.setopts(state.socket, active: :once)
         {:noreply, state}
     end
@@ -292,7 +292,7 @@ defmodule Plover.Connection do
         Log.idle_done_sent()
         :ok = state.transport.send(state.socket, CommandBuilder.build_done())
         pending = Map.put(state.pending, tag, %{from: from, command: "IDLE", responses: []})
-        state = %{state | idle_state: nil, pending: pending}
+        state = %{state | idle_state: nil, pending: pending, pending_order: state.pending_order ++ [tag]}
         :ok = state.transport.setopts(state.socket, active: :once)
         {:noreply, state}
 
@@ -388,7 +388,7 @@ defmodule Plover.Connection do
 
       {%{from: from, command: command, responses: responses}, pending} ->
         prev_state = state.conn_state
-        state = %{state | pending: pending}
+        state = %{state | pending: pending, pending_order: List.delete(state.pending_order, tag)}
         state = apply_state_transition(command, resp, state)
         Log.command_completed(tag, command, resp.status)
 
@@ -537,8 +537,8 @@ defmodule Plover.Connection do
   end
 
   defp first_pending(%State{} = state) do
-    case Map.to_list(state.pending) do
-      [{tag, entry} | _] -> {tag, entry}
+    case state.pending_order do
+      [tag | _] -> {tag, Map.fetch!(state.pending, tag)}
       [] -> nil
     end
   end

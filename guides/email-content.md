@@ -267,6 +267,47 @@ the section paths), and one for the actual content (using those paths). The
 body structure itself is just metadata — the server won't include the raw
 bytes until you ask for a specific section.
 
+### Fetching content for many messages
+
+When processing a batch of messages — for example, rendering a mailbox
+view with preview snippets — use `Plover.fetch_parts_batch/3` to fetch
+and decode parts for multiple UIDs concurrently. It pipelines the
+underlying `UID FETCH` commands so you pay one round trip instead of N:
+
+```elixir
+alias Plover.BodyStructure, as: BS
+
+# 1. Fetch body structures for a range of messages
+{:ok, messages} = Plover.uid_fetch(conn, "1:20", [:body_structure, :uid])
+
+# 2. Build a list of {uid, [{section, part}]} for each message
+parts_by_uid =
+  for msg <- messages do
+    bs = msg.attrs.body_structure
+    parts = BS.find_parts(bs, "text/plain")
+    {to_string(msg.attrs.uid), parts}
+  end
+
+# 3. Fetch and decode all parts in parallel (default: 30 concurrent)
+{:ok, results} = Plover.fetch_parts_batch(conn, parts_by_uid)
+
+# results is a map: %{"uid" => [{"section", "decoded text"}, ...]}
+for {uid, [{_section, text} | _]} <- results do
+  IO.puts("UID #{uid}: #{String.slice(text, 0, 80)}...")
+end
+```
+
+The `:max_concurrency` option controls how many `UID FETCH` commands can
+be in-flight at once (default: 30). Lower it if the server imposes
+connection-level rate limits:
+
+```elixir
+Plover.fetch_parts_batch(conn, parts_by_uid, max_concurrency: 5)
+```
+
+If any individual fetch fails, the entire batch returns `{:error, reason}`
+immediately.
+
 ## Further reading
 
 - [RFC 9051](https://www.rfc-editor.org/rfc/rfc9051) — IMAP4rev2, the protocol Plover implements

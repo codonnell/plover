@@ -13,7 +13,9 @@
       "WebFetch(domain:docs.rs)",
       "WebFetch(domain:imapclient.readthedocs.io)",
       "Bash(git stash:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(mix compile:*)"
     ]
   }
 }

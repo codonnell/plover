@@ -461,6 +461,62 @@ defmodule Plover do
     end
   end
 
+  @doc """
+  Fetches and decodes body parts for multiple messages by UID in parallel.
+
+  Accepts a list of `{uid, [{section, %BodyStructure{}}]}` tuples and
+  issues pipelined `UID FETCH` commands concurrently, bounded by
+  `:max_concurrency` (default: 30).
+
+  Returns `{:ok, %{uid => [{section, decoded_binary}]}}` on success,
+  or `{:error, term}` if any individual fetch fails.
+
+  ## Options
+
+    * `:max_concurrency` - maximum number of concurrent fetch operations (default: 30)
+
+  ## Examples
+
+      parts_by_uid = [
+        {"100", [{"1", text_part}]},
+        {"200", [{"1.1", plain_part}, {"1.2", html_part}]}
+      ]
+      {:ok, results} = Plover.fetch_parts_batch(conn, parts_by_uid)
+      # => %{"100" => [{"1", "..."}], "200" => [{"1.1", "..."}, {"1.2", "..."}]}
+
+  """
+  @spec fetch_parts_batch(pid(), [{String.t(), [{String.t(), BS.t()}]}], keyword()) ::
+          {:ok, %{String.t() => [{String.t(), binary()}]}} | {:error, Tagged.t() | :no_body_data}
+  def fetch_parts_batch(conn, parts_by_uid, opts \\ [])
+
+  def fetch_parts_batch(_conn, [], _opts), do: {:ok, %{}}
+
+  def fetch_parts_batch(conn, parts_by_uid, opts) do
+    max_concurrency = Keyword.get(opts, :max_concurrency, 30)
+
+    parts_by_uid
+    |> Task.async_stream(
+      fn {uid, parts} ->
+        case fetch_parts(conn, uid, parts) do
+          {:ok, decoded} -> {:ok, uid, decoded}
+          {:error, _} = error -> error
+        end
+      end,
+      max_concurrency: max_concurrency,
+      ordered: false
+    )
+    |> Enum.reduce_while({:ok, %{}}, fn
+      {:ok, {:ok, uid, decoded}}, {:ok, acc} ->
+        {:cont, {:ok, Map.put(acc, uid, decoded)}}
+
+      {:ok, {:error, _} = error}, _acc ->
+        {:halt, error}
+
+      {:exit, reason}, _acc ->
+        {:halt, {:error, reason}}
+    end)
+  end
+
   @doc "Searches for messages by UID. See `search/2` for criteria format."
   @spec uid_search(pid(), String.t()) :: {:ok, Plover.Response.ESearch.t()} | {:error, Tagged.t()}
   defdelegate uid_search(conn, criteria), to: Connection
