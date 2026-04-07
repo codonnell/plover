@@ -7,10 +7,13 @@ defmodule Plover.Transport.SSL do
 
   @impl true
   def connect(host, port, opts) do
-    charlist_host = String.to_charlist(host)
+    # Erlang's :ssl module requires hostnames as charlists (also used for SNI)
+    charlist_host = if is_binary(host), do: String.to_charlist(host), else: host
 
     default_opts = [
       active: false,
+      mode: :binary,
+      packet: :line,
       verify: :verify_peer,
       cacerts: :public_key.cacerts_get(),
       depth: 3,
@@ -20,7 +23,7 @@ defmodule Plover.Transport.SSL do
       ]
     ]
 
-    ssl_opts = Keyword.merge(default_opts, opts)
+    ssl_opts = default_opts ++ List.wrap(opts)
     :ssl.connect(charlist_host, port, ssl_opts)
   end
 
